@@ -58,9 +58,7 @@ const LucideIcon = ({ name, size = 16, className = "", color, style, strokeWidth
 };
 
 const SHIFT_TYPES: Record<string, { id: string; label: string; time: string; icon: any; color: string; bg: string; border: string }> = {
-    'M': { id: 'M', label: 'Morning', time: '08:00 - 17:00', icon: Sun, color: THEME.gold, bg: '#fdfaf1', border: '#e8dbb9' },
-    'A': { id: 'A', label: 'Afternoon', time: '14:00 - 23:00', icon: Sunset, color: THEME.burntOrange, bg: '#fcf4f2', border: '#eedbe2' },
-    'N': { id: 'N', label: 'Night', time: '22:00 - 07:00', icon: Moon, color: THEME.primary, bg: '#f0f4f8', border: '#c5dbe5' },
+    'M': { id: 'M', label: 'Standard Auto', time: '08:00 - 17:00', icon: Sun, color: THEME.gold, bg: '#fdfaf1', border: '#e8dbb9' },
     'O': { id: 'O', label: 'Day Off', time: 'Rest Day', icon: Coffee, color: THEME.dustyBlue, bg: '#f3f3f1', border: '#d1d1d5' },
 };
 
@@ -385,7 +383,7 @@ export default function ShiftSchedulesByDept() {
 
   // Filtering Logic
   const filteredData = useMemo(() => {
-      return schedules.map(sched => ({...sched, shiftDetails: SHIFT_TYPES[sched.shift]})).filter(r => {
+      return schedules.map(sched => ({...sched, shiftDetails: SHIFT_TYPES[sched.shift] || SHIFT_TYPES['M']})).filter(r => {
           const searchStr = search.toLowerCase();
           const matchSearch = searchStr === '' || (
               r.dept?.toLowerCase().includes(searchStr) || 

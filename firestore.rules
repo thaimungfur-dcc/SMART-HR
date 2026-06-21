@@ -125,5 +125,15 @@ service cloud.firestore {
     match /system_exports_audit/{id} {
       allow read, write: if true;
     }
+
+    // Collection: payroll_records
+    match /payroll_records/{recordId} {
+      allow read, write: if true;
+    }
+
+    // Collection: hr_logs
+    match /hr_logs/{logId} {
+      allow read, write: if true;
+    }
   }
 }

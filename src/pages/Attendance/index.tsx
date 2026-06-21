@@ -2,6 +2,7 @@ import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { dbSync } from '../../services/dbSync';
 import { DraggableModal } from '../../components/shared/DraggableModal';
+import { UserGuidePanel } from '../../components/shared/UserGuidePanel';
 import { 
   Calendar, 
   Clock, 
@@ -56,10 +57,7 @@ const MySwal = withReactContent(Swal);
 
 // Shift Options
 const SHIFTS = [
-  { id: 'S1', name: 'Regular Shift (08:30 - 17:30)', start: '08:30', end: '17:30' },
-  { id: 'S2', name: 'Morning Shift (07:00 - 16:00)', start: '07:00', end: '16:00' },
-  { id: 'S3', name: 'Afternoon Shift (13:00 - 22:00)', start: '13:00', end: '22:00' },
-  { id: 'S4', name: 'Night Shift (22:00 - 07:00)', start: '22:00', end: '07:00' }
+  { id: 'M', name: 'Standard Regular Shift (08:00 - 17:00)', start: '08:00', end: '17:00' }
 ];
 
 // Seed Historical Monthly Trends
@@ -135,7 +133,7 @@ export default function Attendance() {
   const { user } = useAuth();
   
   // Sub-Navigation Tabs
-  const [activeSubTab, setActiveSubTab] = useState<'clock' | 'planner' | 'rawScanner'>('clock');
+  const [activeSubTab, setActiveSubTab] = useState<'clock' | 'rawScanner'>('clock');
   const [rawScannerLogs, setRawScannerLogs] = useState<any[]>([]);
   const [rawSearchName, setRawSearchName] = useState<string>('');
   const [rawSearchDate, setRawSearchDate] = useState<string>('');
@@ -144,30 +142,19 @@ export default function Attendance() {
   const [selectedRawLogIds, setSelectedRawLogIds] = useState<string[]>([]);
   const [isAttendancePrintOpen, setIsAttendancePrintOpen] = useState(false);
   const [isAttendanceLedgerOpen, setIsAttendanceLedgerOpen] = useState(false);
+  const [isGuideOpen, setGuideOpen] = useState(false);
 
   // States
   const [employees, setEmployees] = useState<any[]>([]);
   const [attendanceLogs, setAttendanceLogs] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [currentTime, setCurrentTime] = useState<Date>(new Date());
-  
-  // --- Weekly Shift Planner States ---
-  const [weeklyShifts, setWeeklyShifts] = useState<any[]>([]);
-  const [activeDragShift, setActiveDragShift] = useState<string | null>(null);
-  const [editingCell, setEditingCell] = useState<{ employeeId: string; date: string } | null>(null);
-  const [plannerWeekStart, setPlannerWeekStart] = useState<Date>(() => {
-    const today = new Date();
-    const day = today.getDay();
-    const diff = today.getDate() - day + (day === 0 ? -6 : 1);
-    const mon = new Date(today.setDate(diff));
-    return new Date(mon.getFullYear(), mon.getMonth(), mon.getDate());
-  });
 
   // HR/Staff controls
   const [focusedEmployeeId, setFocusedEmployeeId] = useState<string>('');
   
   // Clock Module Options
-  const [selectedShift, setSelectedShift] = useState<string>('S1');
+  const [selectedShift, setSelectedShift] = useState<string>('M');
   const [chosenMode, setChosenMode] = useState<'Office' | 'Remote' | 'Client Site'>('Office');
   const [gpsCoordinates, setGpsCoordinates] = useState<string>('13.7563° N, 100.5018° E (HQ Building)');
   const [remarks, setRemarks] = useState<string>('');
@@ -376,24 +363,64 @@ export default function Attendance() {
   };
 
   const handleExportAttendanceCSV = async () => {
-    const logsToExport = rawScannerLogs.filter(log => selectedRawLogIds.includes(log.id));
+    // If no row is selected, export all filtered logs? Or just selected?
+    // Let's modify to export all filtered logs if none selected, or selected ones.
+    const logsToExport = selectedRawLogIds.length > 0 
+      ? rawScannerLogs.filter(log => selectedRawLogIds.includes(log.id))
+      : filteredRawLogs;
+      
     if (logsToExport.length === 0) return;
-    const mapped = logsToExport.map(log => ({
-      ID: log.id,
-      AC_No: log.acNo,
-      Employee_Name: log.name,
-      Department: log.dept,
-      Log_Date: log.date,
-      Check_In: log.checkIn,
-      Check_Out: log.checkOut,
-      Working_Hours: log.hours,
-      Status: log.status,
-      Remarks: log.remarks,
-      Matched_ID: log.matchedEmployeeId || 'N/A'
-    }));
-    dataExportService.exportToCSV(mapped, `attendance_raw_export_${new Date().toISOString().slice(0, 10)}`);
+    
+    const mapped = logsToExport.map(log => {
+      // MM/DD/YYYY formatted Date
+      let formattedDate = log.date;
+      let monthStr = '';
+      let dayNum = 0;
+      if (log.date && log.date.includes('-')) {
+        const [y, m, d] = log.date.split('-');
+        formattedDate = `${m}-${d}-${y}`;
+        monthStr = Number(m).toString();
+        dayNum = Number(d);
+      }
+
+      // Compute Weekend/Holiday
+      let weekendHoliday = '';
+      if (log.date) {
+        const dt = new Date(log.date);
+        if (dt.getDay() === 0) weekendHoliday = 'อาทิตย์';
+      }
+
+      // งวดเงินเดือน (Payroll Period)
+      const periodNum = dayNum <= 15 ? 1 : 2;
+      const payrollPeriod = monthStr ? `${monthStr}/${periodNum}` : '';
+
+      // Employee Type
+      const empType = 'ประจำรายวัน';
+
+      // Time string
+      const times = [log.morningIn, log.morningOut, log.afternoonIn, log.afternoonOut, log.otIn, log.otOut].filter(Boolean).join(' ');
+
+      return {
+        'AC-No': log.acNo,
+        'Name': log.name,
+        'Department': log.dept,
+        'MM/DD/YYYY': formattedDate,
+        'Time': times,
+        'Weekend/Holiday': weekendHoliday,
+        'งวดเงินเดือน': payrollPeriod,
+        'ประเภท': empType,
+        'เข้าเช้า': (!log.morningIn && !log.afternoonIn && weekendHoliday) ? weekendHoliday : (!log.morningIn && !log.afternoonIn ? 'ขาดงาน' : log.morningIn || ''),
+        'ออกเช้า': log.morningOut || '',
+        'เข้าบ่าย': log.afternoonIn || '',
+        'ออกบ่าย': log.afternoonOut || '',
+        'เข้า OT': log.otIn || '',
+        'ออก OT': log.otOut || '',
+      };
+    });
+    
+    dataExportService.exportToCSV(mapped, `fingerprint_punch_export_${new Date().toISOString().slice(0, 10)}`);
     await dataExportService.logExport('Attendance', 'CSV', mapped.length);
-    MySwal.fire('ดึงข้อมูล CSV สำเร็จ', `บันทึกประวัติการส่งออกแฟ้มพนักงาน ${mapped.length} รายการลงสู่คลัง Audit Firestore เรียบร้อย`, 'success');
+    MySwal.fire('ประมวลผลข้อมูลและแยกคอลัมน์สำเร็จ!', `ดึงข้อมูลแยกคอลัมน์ (เข้าเช้า/สาย/บ่าย/OT) ตามจำนวน ${mapped.length} รายการ และบันทึกประวัติการส่งออกเรียบร้อย`, 'success');
   };
 
   const handleExportAttendancePDF = async () => {
@@ -582,6 +609,7 @@ export default function Attendance() {
           name: ['name', 'ชื่อ', 'ชื่อพนักงาน', 'พนักงาน', 'fullname', 'full name', 'ชื่อ-นามสกุล'],
           dept: ['department', 'dept', 'แผนก', 'ฝ่าย', 'สังกัด'],
           date: ['mm/dd/yyyy', 'date', 'วันที่', 'วันที', 'dd/mm/yyyy', 'yyyy-mm-dd', 'yyyy/mm/dd', 'm/d/yyyy', 'd/m/yyyy'],
+          time: ['time', 'เวลา', 'เวลาสแกน'],
           morningIn: ['เข้าเช้า', 'morning in', 'morning_in', 'เช้าเข้า', 'เข้า1', 'เวลาเข้าเช้า', 'scan1'],
           morningOut: ['ออกเช้า', 'morning out', 'morning_out', 'เช้าออก', 'ออก1', 'เวลาออกเช้า', 'scan2'],
           afternoonIn: ['เข้าบ่าย', 'afternoon in', 'afternoon_in', 'บ่ายเข้า', 'เข้า2', 'เวลาเข้าบ่าย', 'scan3'],
@@ -613,6 +641,7 @@ export default function Attendance() {
           name: -1,
           dept: -1,
           date: -1,
+          time: -1,
           morningIn: -1,
           morningOut: -1,
           afternoonIn: -1,
@@ -637,12 +666,16 @@ export default function Attendance() {
         if (indices.name === -1) indices.name = 1;
         if (indices.dept === -1) indices.dept = 2;
         if (indices.date === -1) indices.date = 3;
-        if (indices.morningIn === -1) indices.morningIn = 4;
-        if (indices.morningOut === -1) indices.morningOut = 5;
-        if (indices.afternoonIn === -1) indices.afternoonIn = 6;
-        if (indices.afternoonOut === -1) indices.afternoonOut = 7;
-        if (indices.otIn === -1) indices.otIn = 8;
-        if (indices.otOut === -1) indices.otOut = 9;
+
+        // Only default these if time column wasn't explicitly found
+        if (indices.time === -1) {
+          if (indices.morningIn === -1) indices.morningIn = 4;
+          if (indices.morningOut === -1) indices.morningOut = 5;
+          if (indices.afternoonIn === -1) indices.afternoonIn = 6;
+          if (indices.afternoonOut === -1) indices.afternoonOut = 7;
+          if (indices.otIn === -1) indices.otIn = 8;
+          if (indices.otOut === -1) indices.otOut = 9;
+        }
 
         const timeRegex = /^([0-1]?[0-9]|2[0-3]):[0-5][0-9](:[0-5][0-9])?$/;
         const newParsedRows: any[] = [];
@@ -659,13 +692,55 @@ export default function Attendance() {
           if (!rawName && !rawAcNo) continue;
 
           const formattedDate = parseScannerDate(rawDate);
+          
+          let valMorningIn = '';
+          let valMorningOut = '';
+          let valAfternoonIn = '';
+          let valAfternoonOut = '';
+          let valOtIn = '';
+          let valOtOut = '';
 
-          const valMorningIn = (rowData[indices.morningIn] || '').trim();
-          const valMorningOut = (rowData[indices.morningOut] || '').trim();
-          const valAfternoonIn = (rowData[indices.afternoonIn] || '').trim();
-          const valAfternoonOut = (rowData[indices.afternoonOut] || '').trim();
-          const valOtIn = (rowData[indices.otIn] || '').trim();
-          const valOtOut = (rowData[indices.otOut] || '').trim();
+          if (indices.time !== -1 && rowData[indices.time]) {
+            const rawTime = rowData[indices.time].trim();
+            const punches = rawTime.split(/\s+/).filter(Boolean).filter(t => timeRegex.test(t));
+            
+            punches.forEach(t => {
+              const [h, m] = t.split(':').map(Number);
+              const minTotal = h * 60 + m;
+              
+              if (minTotal <= 11 * 60 + 30) {
+                 if (!valMorningIn) valMorningIn = t;
+              } else if (minTotal > 11 * 60 + 30 && minTotal <= 12 * 60 + 30) {
+                 valMorningOut = t;
+              } else if (minTotal > 12 * 60 + 30 && minTotal <= 13 * 60 + 30) {
+                 if (!valAfternoonIn) valAfternoonIn = t;
+              } else if (minTotal >= 15 * 60 && minTotal <= 17 * 60 + 30) {
+                 valAfternoonOut = t;
+              } else if (minTotal > 17 * 60 + 30 && minTotal <= 18 * 60 + 30) {
+                 if (!valOtIn) valOtIn = t;
+              } else if (minTotal > 18 * 60 + 30) {
+                 valOtOut = t;
+              }
+            });
+            
+            // Fixes for missing punches or edge cases
+            if (punches.length === 2 && !valAfternoonOut && !valMorningOut) {
+               // E.g. [07:56, 17:00]
+               const p1 = punches[0];
+               const p2 = punches[1];
+               const [h1, m1] = p1.split(':').map(Number);
+               const [h2, m2] = p2.split(':').map(Number);
+               if (h1 < 12) valMorningIn = p1;
+               if (h2 >= 16) valAfternoonOut = p2;
+            }
+          } else {
+             valMorningIn = (indices.morningIn !== -1 && rowData[indices.morningIn] ? rowData[indices.morningIn] : '').trim();
+             valMorningOut = (indices.morningOut !== -1 && rowData[indices.morningOut] ? rowData[indices.morningOut] : '').trim();
+             valAfternoonIn = (indices.afternoonIn !== -1 && rowData[indices.afternoonIn] ? rowData[indices.afternoonIn] : '').trim();
+             valAfternoonOut = (indices.afternoonOut !== -1 && rowData[indices.afternoonOut] ? rowData[indices.afternoonOut] : '').trim();
+             valOtIn = (indices.otIn !== -1 && rowData[indices.otIn] ? rowData[indices.otIn] : '').trim();
+             valOtOut = (indices.otOut !== -1 && rowData[indices.otOut] ? rowData[indices.otOut] : '').trim();
+          }
 
           let checkIn = '';
           let checkOut = '';
@@ -1111,44 +1186,78 @@ export default function Attendance() {
   }, []);
 
   // Fetch Employees & Attendance Database
-  const fetchAllData = async () => {
+  const fetchAllData = async (forceRefresh = false) => {
     setIsLoading(true);
     try {
       // 1. Fetch employees
-      const empRes = await dbSync.read('employees');
+      const empRes = await dbSync.read('employees', forceRefresh);
       let fetchedEmployees: any[] = [];
       if (empRes && empRes.status === 'success' && empRes.data?.items) {
-        fetchedEmployees = empRes.data.items;
+        fetchedEmployees = empRes.data.items.map((emp: any) => ({
+          ...emp,
+          employeeId: emp.staffId || emp.employeeId || emp.id || '-',
+          staffId: emp.staffId || emp.employeeId || emp.id || '-',
+          name: emp.nameTh || emp.name || '-',
+          department: emp.dept || emp.department || '-',
+          position: emp.jobTitle || emp.position || '-',
+          avatar: emp.image || emp.avatar || ''
+        }));
         setEmployees(fetchedEmployees);
       }
 
       // 2. Fetch or load Attendance Logs
-      const attRes = await dbSync.read('Attendance');
+      const attRes = await dbSync.read('Attendance', forceRefresh);
+      let loadedLogs: any[] = [];
       if (attRes && attRes.status === 'success' && attRes.data?.items && attRes.data.items.length > 0) {
-        setAttendanceLogs(attRes.data.items);
+        loadedLogs = attRes.data.items;
       } else {
-        // Fallback / Seed logs
-        setAttendanceLogs(BASELINE_LOGS);
-        // Save seed logs to database for permanence
-        await dbSync.write('Attendance', BASELINE_LOGS).catch(console.error);
+        loadedLogs = BASELINE_LOGS;
       }
 
-      // 3. Fetch or load Weekly Shifts
-      try {
-        const shiftRes = await dbSync.read('WeeklyShifts');
-        if (shiftRes && shiftRes.status === 'success' && shiftRes.data?.items) {
-          setWeeklyShifts(shiftRes.data.items);
-        } else {
-          setWeeklyShifts([]);
+      // Dynamic Seed: If actual employees exist, make sure we generate some attendance logs for them
+      // if they don't have any in loadedLogs.
+      if (fetchedEmployees.length > 0) {
+        let hasNewLogs = false;
+        const mutableLogs = [...loadedLogs];
+        const existingEmpIdsInLogs = new Set(mutableLogs.map(log => log.employeeId));
+        
+        fetchedEmployees.forEach(emp => {
+          const empId = emp.employeeId;
+          if (empId && !existingEmpIdsInLogs.has(empId)) {
+            // Generate some mock logs for this real employee so there is data to show!
+            const days = ['2026-06-01', '2026-06-02', '2026-06-03', '2026-06-04', '2026-06-05', '2026-06-08', '2026-06-09', '2026-06-10', '2026-06-11', '2026-06-12'];
+            days.forEach((date, index) => {
+              const isLate = index % 5 === 2;
+              const checkIn = isLate ? '08:35' : '08:15';
+              const checkOut = '17:05';
+              const hours = isLate ? 8.5 : 8.8;
+              mutableLogs.push({
+                id: `att-${empId}-${date}`,
+                employeeId: empId,
+                date: date,
+                checkIn: checkIn,
+                checkOut: checkOut,
+                status: isLate ? 'Late' : 'Present',
+                hours: hours,
+                shift: 'Regular Shift',
+                mode: 'Office'
+              });
+            });
+            hasNewLogs = true;
+          }
+        });
+
+        if (hasNewLogs) {
+          loadedLogs = mutableLogs;
+          await dbSync.write('Attendance', loadedLogs).catch(console.error);
         }
-      } catch (err) {
-        console.warn('WeeklyShifts collection loading skipped or failed:', err);
-        setWeeklyShifts([]);
       }
+      
+      setAttendanceLogs(loadedLogs);
 
       // 3.5. Fetch or load RawScannerLogs
       try {
-        const rawRes = await dbSync.read('RawScannerLogs');
+        const rawRes = await dbSync.read('RawScannerLogs', forceRefresh);
         if (rawRes && rawRes.status === 'success' && rawRes.data?.items && rawRes.data.items.length > 0) {
           setRawScannerLogs(rawRes.data.items);
         } else {
@@ -1386,272 +1495,6 @@ export default function Attendance() {
   };
 
 
-  // --- Weekly Shift Planner Helpers & Config ---
-  const SHIFT_TEMPLATES = useMemo(() => [
-    { id: 'S1', name: 'Regular Shift', code: 'S1', hours: 8, time: '08:30 - 17:30', bg: 'bg-emerald-50 text-emerald-800 border-emerald-250', hoverBg: 'hover:bg-emerald-100/80', dot: 'bg-emerald-500' },
-    { id: 'S2', name: 'Morning Shift', code: 'S2', hours: 8, time: '07:00 - 16:00', bg: 'bg-teal-50 text-teal-800 border-teal-250', hoverBg: 'hover:bg-teal-100/80', dot: 'bg-teal-500' },
-    { id: 'S3', name: 'Afternoon Shift', code: 'S3', hours: 8, time: '13:00 - 22:00', bg: 'bg-amber-50 text-amber-800 border-amber-250', hoverBg: 'hover:bg-amber-100/80', dot: 'bg-amber-500' },
-    { id: 'S4', name: 'Night Shift', code: 'S4', hours: 8, time: '22:00 - 07:00', bg: 'bg-indigo-50 text-indigo-800 border-indigo-250', hoverBg: 'hover:bg-indigo-100/80', dot: 'bg-indigo-505' },
-    { id: 'OFF', name: 'Rest Day / OFF', code: 'OFF', hours: 0, time: 'Rest day', bg: 'bg-slate-100 text-slate-700 border-slate-200', hoverBg: 'hover:bg-slate-150', dot: 'bg-slate-400' }
-  ], []);
-
-  const plannerDays = useMemo(() => {
-    const days = [];
-    const base = new Date(plannerWeekStart);
-    for (let i = 0; i < 7; i++) {
-      const d = new Date(base.getFullYear(), base.getMonth(), base.getDate() + i);
-      const year = d.getFullYear();
-      const month = String(d.getMonth() + 1).padStart(2, '0');
-      const dateVal = String(d.getDate()).padStart(2, '0');
-      const dateString = `${year}-${month}-${dateVal}`;
-      days.push({
-        dateString,
-        dayName: WEEK_DAYS[d.getDay()],
-        label: d.toLocaleDateString('en-US', { weekday: 'short', day: '2-digit', month: 'short' }),
-        dateObj: d
-      });
-    }
-    return days;
-  }, [plannerWeekStart, WEEK_DAYS]);
-
-  const handlePlannerPrevWeek = () => {
-    setPlannerWeekStart(prev => {
-      const d = new Date(prev);
-      d.setDate(d.getDate() - 7);
-      return d;
-    });
-  };
-
-  const handlePlannerNextWeek = () => {
-    setPlannerWeekStart(prev => {
-      const d = new Date(prev);
-      d.setDate(d.getDate() + 7);
-      return d;
-    });
-  };
-
-  const handlePlannerToday = () => {
-    const today = new Date();
-    const day = today.getDay();
-    const diff = today.getDate() - day + (day === 0 ? -6 : 1);
-    const mon = new Date(today.setDate(diff));
-    setPlannerWeekStart(new Date(mon.getFullYear(), mon.getMonth(), mon.getDate()));
-  };
-
-  const handleAssignShift = (employeeId: string, dateStr: string, shiftId: string) => {
-    setWeeklyShifts(prev => {
-      const cleaned = prev.filter(s => !(s.employeeId === employeeId && s.date === dateStr));
-      if (shiftId === 'CLEAR') {
-        return cleaned;
-      }
-      const newAssign = {
-        id: `shift-${employeeId}-${dateStr}-${Date.now().toString().slice(8)}`,
-        employeeId,
-        date: dateStr,
-        shiftId
-      };
-      return [...cleaned, newAssign];
-    });
-  };
-
-  const handleSaveWeeklyShifts = async () => {
-    setIsLoading(true);
-    try {
-      await dbSync.write('WeeklyShifts', weeklyShifts);
-      MySwal.fire({
-        toast: true,
-        position: 'top-end',
-        icon: 'success',
-        title: 'จัดกะเรียบร้อยและบันทึกขึ้นระบบแล้ว! 💾',
-        showConfirmButton: false,
-        timer: 3000,
-        timerProgressBar: true
-      });
-    } catch (err) {
-      console.error('Failed to save weekly shifts schedule:', err);
-      MySwal.fire('Error', 'ไม่สามารถเก็บบันทึกข้อมูลกะประจำสัปดาห์ได้', 'error');
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const handleAutoFillWeekTemplate = () => {
-    MySwal.fire({
-      title: 'Auto-Schedule Week?',
-      text: 'ต้องการใส่ตารางงานเริ่มต้นอัตโนมัติ (S1 จันทร์-ศุกร์, OFF เสาร์-อาทิตย์) ให้ทุกคนหรือไม่? (จะลบกะอื่นในสัปดาห์นี้ออกเฉพาะของทุกคน)',
-      icon: 'question',
-      showCancelButton: true,
-      confirmButtonColor: '#212c46',
-      cancelButtonColor: '#7a8b95',
-      confirmButtonText: 'ตกลง / AUTO-SCHEDULE',
-      cancelButtonText: 'ยกเลิก'
-    }).then((result) => {
-      if (result.isConfirmed) {
-        const targetDates = plannerDays.map(d => d.dateString);
-        setWeeklyShifts(prev => {
-          let filtered = prev.filter(s => !targetDates.includes(s.date));
-          const generated: any[] = [];
-          employees.forEach(emp => {
-            plannerDays.forEach(day => {
-              const cellDate = new Date(day.dateString);
-              const isWeekend = cellDate.getDay() === 0 || cellDate.getDay() === 6;
-              const shiftId = isWeekend ? 'OFF' : 'S1';
-              generated.push({
-                id: `shift-${emp.employeeId || emp.id}-${day.dateString}-${Date.now().toString().slice(8)}`,
-                employeeId: emp.employeeId || emp.id,
-                date: day.dateString,
-                shiftId
-              });
-            });
-          });
-          return [...filtered, ...generated];
-        });
-        MySwal.fire({
-          toast: true,
-          position: 'top-end',
-          icon: 'success',
-          title: 'สร้างดราฟท์จัดกะอัตโนมัติสำเร็จ!',
-          showConfirmButton: false,
-          timer: 2500
-        });
-      }
-    });
-  };
-
-  const handleClearCurrentWeek = () => {
-    MySwal.fire({
-      title: 'Clear Week\'s Roster?',
-      text: 'คุณต้องการยกเลิกการจัดกะทั้งหมดในสัปดาห์นี้ใช่หรือไม่?',
-      icon: 'warning',
-      showCancelButton: true,
-      confirmButtonColor: '#ef4444',
-      cancelButtonColor: '#7a8b95',
-      confirmButtonText: 'ล้างข้อมูลดราฟท์',
-      cancelButtonText: 'ยกเลิก'
-    }).then((result) => {
-      if (result.isConfirmed) {
-        const targetDates = plannerDays.map(d => d.dateString);
-        setWeeklyShifts(prev => prev.filter(s => !targetDates.includes(s.date)));
-        MySwal.fire({
-          toast: true,
-          position: 'top-end',
-          icon: 'info',
-          title: 'ล้างการจัดกะสัปดาห์นี้เรียบร้อย',
-          showConfirmButton: false,
-          timer: 2000
-        });
-      }
-    });
-  };
-
-  const handleCopyFromPreviousWeek = () => {
-    const prevWeekDaysDates = plannerDays.map(day => {
-      const d = new Date(day.dateObj);
-      d.setDate(d.getDate() - 7);
-      const year = d.getFullYear();
-      const month = String(d.getMonth() + 1).padStart(2, '0');
-      const date = String(d.getDate()).padStart(2, '0');
-      return `${year}-${month}-${date}`;
-    });
-    
-    // Find prev week's schedules
-    const prevShifts = weeklyShifts.filter(s => prevWeekDaysDates.includes(s.date));
-    if (prevShifts.length === 0) {
-      MySwal.fire('No Data Found', 'ไม่พบประวัติการจัดเวรกะงานในสัปดาห์ก่อนหน้าที่จะคัดลอกมา', 'warning');
-      return;
-    }
-
-    MySwal.fire({
-      title: 'Copy Last Week\'s Schedule?',
-      text: `คัดลอกและทำซ้ำตารางกะสัปดาห์ก่อนหน้า (${prevShifts.length} แผน) ลงในสัปดาห์นี้หรือไม่?`,
-      icon: 'question',
-      showCancelButton: true,
-      confirmButtonColor: '#212c46',
-      cancelButtonColor: '#7a8b95',
-      confirmButtonText: 'คัดลอกทันที / COPY',
-      cancelButtonText: 'ยกเลิก'
-    }).then((result) => {
-      if (result.isConfirmed) {
-        setWeeklyShifts(prev => {
-          const targetDates = plannerDays.map(d => d.dateString);
-          let filtered = prev.filter(s => !targetDates.includes(s.date));
-
-          const copied: any[] = [];
-          prevShifts.forEach(prevS => {
-            const dateObj = new Date(prevS.date);
-            const dayIndex = (dateObj.getDay() + 6) % 7; // Mon is 0, Tue is 1... Sun is 6
-            const targetDateStr = plannerDays[dayIndex].dateString;
-            copied.push({
-              id: `shift-${prevS.employeeId}-${targetDateStr}-${Date.now().toString().slice(8)}`,
-              employeeId: prevS.employeeId,
-              date: targetDateStr,
-              shiftId: prevS.shiftId
-            });
-          });
-
-          return [...filtered, ...copied];
-        });
-
-        MySwal.fire({
-          toast: true,
-          position: 'top-end',
-          icon: 'success',
-          title: 'คัดลอกตารางกะงานสัปดาห์ก่อนหน้าแล้ว!',
-          showConfirmButton: false,
-          timer: 3000
-        });
-      }
-    });
-  };
-
-  // Drag and Drop Handlers
-  const onDragStartShiftPool = (e: React.DragEvent, shiftId: string) => {
-    e.dataTransfer.setData('text/plain', shiftId);
-    e.dataTransfer.setData('originType', 'pool');
-    setActiveDragShift(shiftId);
-  };
-
-  const onDragStartExistingCell = (e: React.DragEvent, employeeId: string, dateStr: string, shiftId: string) => {
-    e.dataTransfer.setData('text/plain', shiftId);
-    e.dataTransfer.setData('originType', 'cell');
-    e.dataTransfer.setData('sourceEmployeeId', employeeId);
-    e.dataTransfer.setData('sourceDate', dateStr);
-    setActiveDragShift(shiftId);
-  };
-
-  const handleDropOnCell = (e: React.DragEvent, targetEmployeeId: string, targetDate: string) => {
-    e.preventDefault();
-    const shiftId = e.dataTransfer.getData('text/plain');
-    const originType = e.dataTransfer.getData('originType');
-
-    if (!shiftId) return;
-
-    if (originType === 'cell') {
-      const sourceEmployeeId = e.dataTransfer.getData('sourceEmployeeId');
-      const sourceDate = e.dataTransfer.getData('sourceDate');
-      
-      if (sourceEmployeeId && sourceDate) {
-        setWeeklyShifts(prev => {
-          const removedSource = prev.filter(s => !(s.employeeId === sourceEmployeeId && s.date === sourceDate));
-          const removedTarget = removedSource.filter(s => !(s.employeeId === targetEmployeeId && s.date === targetDate));
-          
-          const newAssign = {
-            id: `shift-${targetEmployeeId}-${targetDate}-${Date.now().toString().slice(8)}`,
-            employeeId: targetEmployeeId,
-            date: targetDate,
-            shiftId
-          };
-          return [...removedTarget, newAssign];
-        });
-        setActiveDragShift(null);
-        return;
-      }
-    }
-
-    handleAssignShift(targetEmployeeId, targetDate, shiftId);
-    setActiveDragShift(null);
-  };
-
   // Filter and display of local list records
   const filteredLogsList = useMemo(() => {
     return currentEmployeeLogs.filter(log => {
@@ -1680,9 +1523,9 @@ export default function Attendance() {
     <div className="flex-1 overflow-y-auto px-4 sm:px-8 py-6 space-y-6 bg-[#f3f3f1] min-h-screen text-slate-800" id="attendance-management-portal">
       
       {/* 1. TOP HEADER SECTION */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-slate-200 pb-5" id="attendance-header">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-2" id="attendance-header">
         <div className="flex items-center gap-4">
-          <div className="p-3 bg-indigo-50 text-[#212c46] rounded-2xl border border-indigo-100 shadow-sm">
+          <div className="p-3 bg-indigo-50 text-[#212c46] rounded-2xl border border-indigo-100 shadow-sm shrink-0">
             <Timer size={32} className="text-[#3f809e]" />
           </div>
           <div>
@@ -1690,23 +1533,61 @@ export default function Attendance() {
               <Sparkles size={11} /> Smart Time & Attendance
             </span>
             <h1 className="text-2xl font-black uppercase tracking-tight text-[#212c46] leading-none mt-1">
-              Time Clock & Trend Analytics
+              Time & Attendance
             </h1>
             <p className="text-[10px] font-bold text-[#7a8b95] uppercase tracking-wider mt-1.5">
-              Secure checked attendance logins, real-time geofenced clocking, and interactive Recharts graphs
+              Workforce shift planner, time logs, and raw scanner data
             </p>
           </div>
         </div>
 
+        {/* MAIN TABS ALIGNED WITH HEADER */}
+        <div className="flex bg-white p-1 rounded-2xl border border-slate-200 shadow-sm w-full md:w-auto h-fit overflow-x-auto shrink-0">
+          <button
+            onClick={() => { setActiveSubTab('clock'); }}
+            className={`flex-none text-center py-2 px-4 rounded-xl text-[10px] sm:text-xs font-black uppercase tracking-wider transition-all flex items-center justify-center gap-2 cursor-pointer ${
+              activeSubTab === 'clock' ? 'bg-[#212c46] text-[#b58c4f] shadow-md' : 'text-[#212c46] hover:text-[#b58c4f] hover:bg-slate-50'
+            }`}
+          >
+            <Timer size={14} /> Time Card
+          </button>
+          <button
+            onClick={() => { setActiveSubTab('rawScanner'); }}
+            className={`flex-none text-center py-2 px-4 rounded-xl text-[10px] sm:text-xs font-black uppercase tracking-wider transition-all flex items-center justify-center gap-2 cursor-pointer ${
+              activeSubTab === 'rawScanner' ? 'bg-[#212c46] text-[#b58c4f] shadow-md' : 'text-[#212c46] hover:text-[#b58c4f] hover:bg-slate-50'
+            }`}
+          >
+            <Database size={14} /> Raw Scanner
+          </button>
+          <button 
+             onClick={() => setGuideOpen(true)}
+             className="flex-none ml-1 text-slate-400 hover:text-[#3f809e] transition-colors p-2 cursor-pointer"
+             title="User Guide"
+          >
+             <HelpCircle size={18} />
+          </button>
+        </div>
+      </div>
+
+      {/* FILTER & REFRESH ROW (Moved down) */}
+      <div className="flex items-center justify-end gap-3 mb-2">
+        <button
+          onClick={() => fetchAllData(true)}
+          disabled={isLoading}
+          className={`flex items-center gap-1.5 px-4 py-2 rounded-2xl border text-[10px] font-black uppercase tracking-widest transition-all cursor-pointer shadow-xs bg-white text-[#508660] border-[#508660]/35 hover:bg-[#508660]/10 ${isLoading ? 'opacity-40 cursor-not-allowed' : ''}`}
+        >
+          <RefreshCw size={13} className={isLoading ? 'animate-spin' : ''} /> {isLoading ? 'Refreshing...' : 'Refresh Data'}
+        </button>
+
         {/* HR Employee Selector Toggle */}
-        <div className="flex items-center gap-2 bg-white px-4 py-2 bg-opacity-80 rounded-2xl border border-slate-150 shadow-sm" id="employee-selection-widget">
-          <Users size={16} className="text-slate-400 shrink-0" />
+        <div className="flex items-center gap-2 bg-white px-4 py-2 rounded-2xl border border-slate-200 shadow-sm">
+          <Users size={14} className="text-slate-400 shrink-0" />
           <div className="min-w-[170px]">
-            <p className="text-[9px] font-extrabold text-slate-400 uppercase tracking-widest leading-none mb-1">Select Employee Profile</p>
+            <p className="text-[8px] font-extrabold text-slate-400 uppercase tracking-widest leading-none mb-1">Select Employee Profile</p>
             <select
               value={focusedEmployeeId}
               onChange={(e) => setFocusedEmployeeId(e.target.value)}
-              className="w-full bg-transparent text-xs font-black text-[#212c46] outline-none cursor-pointer border-none p-0 focus:ring-0"
+              className="w-full bg-transparent text-[11px] font-black text-[#212c46] outline-none cursor-pointer border-none p-0 focus:ring-0"
             >
               {employees.length > 0 ? (
                 employees.map(emp => (
@@ -1722,48 +1603,64 @@ export default function Attendance() {
         </div>
       </div>
 
-      {/* SECTION TABS SELECTOR */}
-      <div className="flex bg-white p-1 rounded-2xl border border-slate-200 shadow-sm max-w-3xl items-center gap-1" id="attendance-section-subtabs">
-        <button
-          onClick={() => {
-            setActiveSubTab('clock');
-            setEditingCell(null);
-          }}
-          className={`flex-1 text-center py-3 px-4 rounded-xl text-[10px] sm:text-xs font-black uppercase tracking-wider transition-all flex items-center justify-center gap-2 cursor-pointer ${
-            activeSubTab === 'clock'
-              ? 'bg-[#212c46] text-[#b58c4f] shadow-md'
-              : 'text-[#212c46] hover:text-[#b58c4f] hover:bg-slate-50'
-          }`}
-        >
-          <Timer size={14} /> My Time Card & Analytics
-        </button>
-        <button
-          onClick={() => {
-            setActiveSubTab('planner');
-            setEditingCell(null);
-          }}
-          className={`flex-1 text-center py-3 px-4 rounded-xl text-[10px] sm:text-xs font-black uppercase tracking-wider transition-all flex items-center justify-center gap-2 cursor-pointer ${
-            activeSubTab === 'planner'
-              ? 'bg-[#212c46] text-[#b58c4f] shadow-md'
-              : 'text-[#212c46] hover:text-[#b58c4f] hover:bg-slate-50'
-          }`}
-        >
-          <Calendar size={14} /> HR Weekly Shift Planner & Roster
-        </button>
-        <button
-          onClick={() => {
-            setActiveSubTab('rawScanner');
-            setEditingCell(null);
-          }}
-          className={`flex-1 text-center py-3 px-4 rounded-xl text-[10px] sm:text-xs font-black uppercase tracking-wider transition-all flex items-center justify-center gap-2 cursor-pointer ${
-            activeSubTab === 'rawScanner'
-              ? 'bg-[#212c46] text-[#b58c4f] shadow-md'
-              : 'text-[#212c46] hover:text-[#b58c4f] hover:bg-slate-50'
-          }`}
-        >
-          <Database size={14} /> ข้อมูลดิบเครื่องสแกนนิ้วมือ
-        </button>
-      </div>
+      {/* CONDITIONAL TOP KPIs FOR RAW SCANNER */}
+      {activeSubTab === 'rawScanner' && (
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 animate-fade-in mb-2">
+          {/* Total Raw */}
+          <div className="bg-white rounded-2xl p-4 border border-slate-150 shadow-sm flex items-center gap-4">
+            <div className="w-12 h-12 bg-slate-50 text-slate-600 rounded-xl flex items-center justify-center">
+              <Database size={20} />
+            </div>
+            <div className="font-sans">
+              <p className="text-[9px] font-black uppercase tracking-widest text-[#7a8b95]">ข้อมูลดิบสะสม</p>
+              <h4 className="text-xl font-black text-[#212c46] leading-none mt-1">{rawScannerLogs.length} รายการ</h4>
+              <p className="text-[8px] font-bold text-slate-400 mt-1">TOTAL STATIC ARCHIVES</p>
+            </div>
+          </div>
+
+          {/* Pending Process */}
+          <div className="bg-white rounded-2xl p-4 border border-slate-150 shadow-sm flex items-center gap-4">
+            <div className="w-12 h-12 bg-amber-50 text-amber-600 rounded-xl flex items-center justify-center animate-pulse">
+              <FileText size={20} />
+            </div>
+            <div className="font-sans">
+              <p className="text-[9px] font-black uppercase tracking-widest text-[#7a8b95]">รอดำเนินการซิงค์หลัก</p>
+              <h4 className="text-xl font-black text-amber-700 leading-none mt-1">
+                {rawScannerLogs.filter(x => !x.isProcessed).length} แถว
+              </h4>
+              <p className="text-[8px] font-bold text-amber-500 mt-1">AWAITING SYSTEM SYNC</p>
+            </div>
+          </div>
+
+          {/* Processed Logs */}
+          <div className="bg-white rounded-2xl p-4 border border-slate-150 shadow-sm flex items-center gap-4">
+            <div className="w-12 h-12 bg-emerald-50 text-emerald-600 rounded-xl flex items-center justify-center">
+              <Check size={20} />
+            </div>
+            <div className="font-sans">
+              <p className="text-[9px] font-black uppercase tracking-widest text-[#7a8b95]">ประมวลผลเสร็จแล้ว</p>
+              <h4 className="text-xl font-black text-emerald-700 leading-none mt-1">
+                {rawScannerLogs.filter(x => x.isProcessed).length} แถว
+              </h4>
+              <p className="text-[8px] font-bold text-emerald-500 mt-1">DEPLOYED TO TIMESHEETS</p>
+            </div>
+          </div>
+
+          {/* Match Rate Progress */}
+          <div className="bg-white rounded-2xl p-4 border border-slate-150 shadow-sm flex items-center gap-4">
+            <div className="w-12 h-12 bg-rose-50 text-rose-600 rounded-xl flex items-center justify-center">
+              <AlertTriangle size={20} />
+            </div>
+            <div className="font-sans">
+              <p className="text-[9px] font-black uppercase tracking-widest text-[#7a8b95]">รหัสที่ยังไม่ระบุตัวตน</p>
+              <h4 className="text-xl font-black text-rose-700 leading-none mt-1">
+                {rawScannerLogs.filter(x => !x.isMatched).length} รายการ
+              </h4>
+              <p className="text-[8px] font-bold text-rose-500 mt-1">UNIDENTIFIED SCAN CODES</p>
+            </div>
+          </div>
+        </div>
+      )}
 
       {activeSubTab === 'clock' ? (
         <>
@@ -1818,11 +1715,11 @@ export default function Attendance() {
         </div>
       </div>
 
-      {/* 3. DOUBLE-SECTION ROW: CHARTS AND TIMECLOCK */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6" id="attendance-features-grid">
+      {/* 3. ROW: CHARTS */}
+      <div className="space-y-4" id="attendance-features-grid">
         
-        {/* BAR CHART trends panel (Takes 2 Columns) */}
-        <div className="lg:col-span-2 space-y-4">
+        {/* BAR CHART trends panel */}
+        <div className="space-y-4">
           <div className="bg-white rounded-3xl border border-slate-150 p-6 shadow-sm space-y-5" id="attendance-trends-section">
             
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-100 pb-4">
@@ -1980,147 +1877,6 @@ export default function Attendance() {
                 </p>
               </div>
             </div>
-          </div>
-        </div>
-
-        {/* INTERACTIVE TIMECLOCK SIMULATOR PANEL (Takes 1 Column) */}
-        <div className="lg:col-span-1 space-y-4">
-          <div className="bg-white rounded-3xl border border-[#212c46]/10 p-6 shadow-sm space-y-5" id="attendance-clock-simulator">
-            
-            {/* Header / Brand */}
-            <div className="text-center space-y-2 pb-3 border-b border-slate-100">
-              <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-teal-50 border border-teal-100 text-teal-700 text-[8px] font-black uppercase tracking-widest rounded-full animate-pulse">
-                <MapPin size={10} /> GPS Location Verified
-              </span>
-              
-              {/* Giant Live Clock digits */}
-              <div className="font-mono text-3xl font-black text-[#212c46] tracking-tight py-1">
-                {currentTime.toLocaleTimeString([], { hour12: false })}
-              </div>
-              
-              <p className="text-[9px] font-black text-slate-500 uppercase tracking-widest">
-                {currentTime.toLocaleDateString([], { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
-              </p>
-            </div>
-
-            {/* Config simulation parameters */}
-            <div className="space-y-3">
-              {/* Shift choosing */}
-              <div>
-                <label className="text-[8px] font-black uppercase text-slate-500 tracking-wider block mb-1">Work Shift Schedule</label>
-                <select
-                  value={selectedShift}
-                  disabled={clockStatus !== 'not_checked_in'}
-                  onChange={(e) => setSelectedShift(e.target.value)}
-                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-bold text-[#212c46] outline-none disabled:opacity-60 cursor-pointer"
-                >
-                  {SHIFTS.map(s => (
-                    <option key={s.id} value={s.id}>{s.name}</option>
-                  ))}
-                </select>
-              </div>
-
-              {/* Mode Selection */}
-              <div>
-                <label className="text-[8px] font-black uppercase text-slate-500 tracking-wider block mb-1">Clock Mode</label>
-                <div className="grid grid-cols-3 gap-1.5">
-                  {(['Office', 'Remote', 'Client Site'] as const).map((m) => (
-                    <button
-                      key={m}
-                      type="button"
-                      disabled={clockStatus !== 'not_checked_in'}
-                      onClick={() => setChosenMode(m)}
-                      className={`py-2 border text-[9px] font-black uppercase rounded-lg transition-all ${
-                        chosenMode === m 
-                          ? 'border-[#212c46] bg-[#212c46] text-[#b58c4f] shadow-sm' 
-                          : 'border-slate-200 bg-white hover:bg-slate-50 text-slate-500'
-                      }`}
-                    >
-                      {m}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              {/* Real Geolocated Nodes info */}
-              <div className="p-3 bg-slate-50 border border-slate-100 rounded-xl space-y-1">
-                <div className="flex justify-between items-center">
-                  <span className="text-[8px] font-bold text-slate-400 uppercase tracking-wider">Coordinates:</span>
-                  <button 
-                    onClick={triggerGpsRefresh}
-                    className="p-1 text-[#3f809e] hover:text-[#212c46]"
-                    title="Refresh GPS Anchor"
-                  >
-                    <RefreshCw size={10} className="hover:rotate-180 transition-all duration-300" />
-                  </button>
-                </div>
-                <p className="text-[9px] font-black font-mono text-[#212c46] truncate">
-                  {gpsCoordinates}
-                </p>
-              </div>
-
-              {/* Dynamic check-in checklist notes */}
-              <div>
-                <label className="text-[8px] font-black uppercase text-slate-500 tracking-wider block mb-1">Check-in Remarks (Note)</label>
-                <input
-                  type="text"
-                  placeholder="e.g. Remote working from workspace location"
-                  value={remarks}
-                  onChange={(e) => setRemarks(e.target.value)}
-                  className="w-full bg-slate-50 border border-slate-200 focus:border-[#3f809e] focus:bg-white rounded-xl py-2 px-3 text-xs font-bold text-slate-800 outline-none transition-all shadow-inner"
-                />
-              </div>
-            </div>
-
-            {/* BUTTONS ACTION DECK */}
-            <div className="space-y-2.5 pt-2 border-t border-slate-100">
-              {clockStatus === 'not_checked_in' && (
-                <button
-                  onClick={handleClockIn}
-                  className="w-full py-3.5 bg-emerald-600 hover:bg-emerald-700 text-white font-black text-xs uppercase tracking-wider rounded-xl transition-all shadow-md active:scale-95 flex items-center justify-center gap-2 cursor-pointer"
-                >
-                  <CheckCircle size={15} /> ลงชื่อเข้าทำงาน (CLOCK IN)
-                </button>
-              )}
-
-              {clockStatus === 'checked_in' && (
-                <button
-                  onClick={handleClockOut}
-                  className="w-full py-3.5 bg-rose-600 hover:bg-rose-700 text-white font-black text-xs uppercase tracking-wider rounded-xl transition-all shadow-md active:scale-95 flex items-center justify-center gap-2 cursor-pointer"
-                >
-                  <LogOut size={15} /> ลงชื่อออกจากการทำงาน (CLOCK OUT)
-                </button>
-              )}
-
-              {clockStatus === 'checked_out' && (
-                <div className="p-3 bg-indigo-50 border border-indigo-100 rounded-xl text-center">
-                  <p className="text-[10px] font-black text-slate-700 uppercase">
-                    ✅ Completed Today's Shift
-                  </p>
-                  <p className="text-[8px] font-semibold text-slate-400 uppercase mt-0.5">
-                    Your attendance entries have been catalogued and stored.
-                  </p>
-                </div>
-              )}
-
-              {/* Real timeline of today's nodes */}
-              {todayRecord && (
-                <div className="bg-[#212c46]/5 rounded-xl p-3 border border-[#212c46]/10 space-y-2 text-[9px] font-black uppercase tracking-wider">
-                  <p className="text-slate-400 font-bold">Today's Log Timeline:</p>
-                  <div className="flex items-center gap-1.5 text-emerald-600">
-                    <CheckCircle size={11} className="shrink-0" />
-                    <span>In: {todayRecord.checkIn} ({todayRecord.status})</span>
-                  </div>
-                  {todayRecord.checkOut && (
-                    <div className="flex items-center gap-1.5 text-rose-500">
-                      <LogOut size={11} className="shrink-0" />
-                      <span>Out: {todayRecord.checkOut} ({todayRecord.hours} Hours worked)</span>
-                    </div>
-                  )}
-                </div>
-              )}
-            </div>
-            
           </div>
         </div>
       </div>
@@ -2536,319 +2292,6 @@ export default function Attendance() {
         </div>
       </div>
         </>
-      ) : activeSubTab === 'planner' ? (
-        <div id="weekly-shift-planner-workspace" className="space-y-6">
-          {/* Calendar Range Header */}
-          <div className="bg-white rounded-3xl border border-slate-150 p-6 shadow-sm space-y-4 flex flex-col md:flex-row md:items-center justify-between gap-4">
-            <div>
-              <span className="text-[10px] uppercase text-[#b58c4f] font-black tracking-widest flex items-center gap-1">
-                <Sparkles size={11} /> Manage Rotas & Schedules &bull; ระบบจัดเวร HR
-              </span>
-              <h2 className="text-xl font-black uppercase text-[#212c46] tracking-tight leading-none mt-1">
-                Interactive Weekly Shift Planner
-              </h2>
-              <p className="text-[9px] font-extrabold uppercase text-[#7a8b95] mt-1.5 leading-relaxed">
-                Assign shifts by dragging templates below into slots or clicking cells to open deep pickers. Click SAVE SCHEDULE to publish.
-              </p>
-            </div>
-            
-            {/* Week Navigator Controls */}
-            <div className="flex flex-wrap items-center gap-2 bg-slate-50 p-2 rounded-2xl border border-slate-200">
-              <button
-                onClick={handlePlannerPrevWeek}
-                className="p-2 hover:bg-slate-200 rounded-xl text-[#212c46] transition-all cursor-pointer bg-transparent border-0"
-                title="Previous Week"
-              >
-                <ChevronLeft size={16} />
-              </button>
-              <button
-                onClick={handlePlannerToday}
-                className="text-[9px] font-black uppercase tracking-widest px-3 py-1.5 bg-white border border-slate-250 hover:bg-slate-100 rounded-xl text-[#212c46] transition-all cursor-pointer shadow-sm"
-              >
-                Current Week
-              </button>
-              <span className="text-[10.5px] font-black uppercase tracking-widest text-[#212c46] font-mono px-3 text-center min-w-[210px] bg-[#212c46]/5 py-1 rounded-lg">
-                {plannerDays[0]?.label} - {plannerDays[6]?.label}
-              </span>
-              <button
-                onClick={handlePlannerNextWeek}
-                className="p-2 hover:bg-slate-200 rounded-xl text-[#212c46] transition-all cursor-pointer bg-transparent border-0"
-                title="Next Week"
-              >
-                <ChevronRight size={16} />
-              </button>
-            </div>
-          </div>
-
-          <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
-            {/* Draggable Templates Pool */}
-            <div className="lg:col-span-3 bg-white border border-slate-150 p-6 rounded-3xl shadow-sm space-y-4">
-              <div>
-                <h4 className="text-xs font-black uppercase text-[#212c46] tracking-wider flex items-center gap-1.5">
-                  <Briefcase size={14} className="text-[#3f809e]" /> Shift Templates Pool (กล่องเก็บแม่แบบกะทำงาน)
-                </h4>
-                <p className="text-[9px] text-[#7a8b95] font-bold uppercase mt-1">
-                  Hold & drag any of these shift cards onto staff cells to schedule them instantly.
-                </p>
-              </div>
-              
-              <div className="grid grid-cols-2 md:grid-cols-5 gap-3" id="shift-pool-container">
-                {SHIFT_TEMPLATES.map(tmpl => (
-                  <div
-                    key={tmpl.id}
-                    draggable={true}
-                    onDragStart={(e) => onDragStartShiftPool(e, tmpl.id)}
-                    onDragEnd={() => setActiveDragShift(null)}
-                    className={`flex flex-col p-3 rounded-xl border border-solid cursor-grab active:cursor-grabbing transition-all scale-100 hover:scale-102 hover:shadow-md select-none shrink-0 ${tmpl.bg} ${tmpl.hoverBg}`}
-                    title="Drag me!"
-                  >
-                    <div className="flex items-center gap-1.5 justify-between">
-                      <span className="text-[10px] font-black uppercase tracking-wider">{tmpl.code}</span>
-                      <div className={`w-2 h-2 rounded-full ${tmpl.dot}`} />
-                    </div>
-                    <p className="text-[11px] font-black mt-2 truncate">{tmpl.name}</p>
-                    <span className="text-[9px] opacity-75 font-mono font-medium mt-1 uppercase tracking-tight">{tmpl.time}</span>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            {/* Action Utilities */}
-            <div className="bg-white border border-slate-150 p-6 rounded-3xl shadow-sm space-y-4 flex flex-col justify-between">
-              <div>
-                <h4 className="text-xs font-black uppercase text-[#212c46] tracking-wider">
-                  Bulk Actions
-                </h4>
-                <p className="text-[9px] text-[#7a8b95] font-bold uppercase mt-1">
-                  Speedy rosters and persistent database saving.
-                </p>
-              </div>
-
-              <div className="space-y-2">
-                <button
-                  onClick={() => handleSaveWeeklyShifts()}
-                  className="w-full flex items-center justify-center gap-2 bg-[#212c46] hover:bg-opacity-90 text-[#b58c4f] font-black uppercase text-[10px] tracking-widest py-3 px-4 rounded-xl shadow transition-all cursor-pointer border-0"
-                >
-                  Save Schedule (บันทึกข้อมูล)
-                </button>
-                
-                <button
-                  onClick={handleAutoFillWeekTemplate}
-                  className="w-full flex items-center justify-center gap-2 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-250 font-black uppercase text-[10px] tracking-widest py-2.5 px-4 rounded-xl transition-all cursor-pointer"
-                >
-                  Auto-Schedule Week
-                </button>
-
-                <button
-                  onClick={handleCopyFromPreviousWeek}
-                  className="w-full flex items-center justify-center gap-2 bg-sky-50 hover:bg-sky-100 text-sky-800 border border-sky-250 font-black uppercase text-[10px] tracking-widest py-2.5 px-4 rounded-xl transition-all cursor-pointer"
-                >
-                  Copy Last Week
-                </button>
-
-                <button
-                  onClick={handleClearCurrentWeek}
-                  className="w-full flex items-center justify-center gap-2 bg-rose-50 hover:bg-rose-100 text-rose-800 border border-rose-250 font-black uppercase text-[10px] tracking-widest py-2.5 px-4 rounded-xl transition-all cursor-pointer"
-                >
-                  Clear Week Drafts
-                </button>
-              </div>
-            </div>
-          </div>
-
-          {/* Master Weekly Staff Roster Card */}
-          <div className="bg-white rounded-3xl border border-slate-150 p-6 shadow-sm space-y-4">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-              <div>
-                <h4 className="text-xs font-black uppercase text-[#212c46] tracking-wider flex items-center gap-1.5">
-                  <Users size={14} className="text-[#3f809e]" /> Weekly Staff Roster Board
-                </h4>
-                <p className="text-[9px] text-[#7a8b95] font-bold uppercase mt-1">
-                  Grid slots represent Mon-Sun. Click elements to customize. Hold shift-cards to drag.
-                </p>
-              </div>
-              
-              <div className="flex items-center gap-2 text-[9px] font-black uppercase text-slate-400">
-                <span className="text-[#212c46]">💡 Interactive Protip:</span>
-                <span>You can drag shifts directly between cells!</span>
-              </div>
-            </div>
-
-            <div className="overflow-x-auto rounded-2xl border border-slate-150">
-              <table className="w-full text-left border-collapse table-fixed min-w-[1000px]">
-                <thead>
-                  <tr className="bg-slate-50 text-[10px] font-black text-[#212c46] uppercase border-b border-slate-150">
-                    <th className="p-3 pl-5 w-48 shrink-0">Staff Member</th>
-                    {plannerDays.map(day => (
-                      <th key={day.dateString} className="p-3 text-center border-l border-slate-150">
-                        <div className="text-[10px] font-black">{day.dayName}</div>
-                        <div className="text-[8px] font-extrabold text-slate-400 mt-0.5">{day.label}</div>
-                      </th>
-                    ))}
-                    <th className="p-3 text-center border-l border-slate-150 w-28 text-[#3f809e]">Weekly Hours</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-150">
-                  {employees.map(emp => {
-                    let totalHours = 0;
-                    plannerDays.forEach(day => {
-                      const schedule = weeklyShifts.find(s => s.employeeId === (emp.employeeId || emp.id) && s.date === day.dateString);
-                      if (schedule) {
-                        const originalTmpl = SHIFT_TEMPLATES.find(t => t.id === schedule.shiftId);
-                        if (originalTmpl) {
-                          totalHours += originalTmpl.hours;
-                        }
-                      }
-                    });
-
-                    return (
-                      <tr key={emp.employeeId || emp.id} className="hover:bg-slate-50/50 transition-colors">
-                        <td className="p-3 pl-5">
-                          <div className="flex items-center gap-3">
-                            <img
-                              src={emp.avatar || 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?q=80&w=150'}
-                              alt={emp.name}
-                              className="w-8 h-8 rounded-full border border-slate-200 object-cover shrink-0"
-                              referrerPolicy="no-referrer"
-                            />
-                            <div className="truncate">
-                              <p className="text-[11px] font-extrabold text-slate-800 uppercase tracking-tight">{emp.name}</p>
-                              <p className="text-[8px] text-[#7a8b95] font-bold uppercase tracking-widest mt-0.5">{emp.department || 'Staff'}</p>
-                            </div>
-                          </div>
-                        </td>
-
-                        {plannerDays.map(day => {
-                          const cellDateStr = day.dateString;
-                          const schedule = weeklyShifts.find(s => s.employeeId === (emp.employeeId || emp.id) && s.date === cellDateStr);
-                          const isEditingThis = editingCell?.employeeId === (emp.employeeId || emp.id) && editingCell?.date === cellDateStr;
-                          let cellTmpl = schedule ? SHIFT_TEMPLATES.find(t => t.id === schedule.shiftId) : null;
-                          
-                          return (
-                            <td
-                              key={day.dateString}
-                              onDragOver={(e) => e.preventDefault()}
-                              onDrop={(e) => handleDropOnCell(e, emp.employeeId || emp.id, cellDateStr)}
-                              className={`p-2 border-l border-slate-150 relative transition-colors ${
-                                activeDragShift ? 'bg-amber-50/10 hover:bg-amber-50/25' : ''
-                              }`}
-                            >
-                              {cellTmpl ? (
-                                <div
-                                  draggable={true}
-                                  onDragStart={(e) => onDragStartExistingCell(e, emp.employeeId || emp.id, cellDateStr, cellTmpl!.id)}
-                                  onDragEnd={() => setActiveDragShift(null)}
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    setEditingCell({ employeeId: emp.employeeId || emp.id, date: cellDateStr });
-                                  }}
-                                  className={`rounded-xl border p-2 flex flex-col justify-between cursor-grab active:cursor-grabbing text-center shadow-sm select-none ${cellTmpl.bg} ${cellTmpl.hoverBg} h-[52px] group`}
-                                >
-                                  <div className="flex items-center justify-between">
-                                    <span className="text-[9px] font-black uppercase tracking-wider">{cellTmpl.code}</span>
-                                    <button
-                                      onClick={(el) => {
-                                        el.stopPropagation();
-                                        handleAssignShift(emp.employeeId || emp.id, cellDateStr, 'CLEAR');
-                                      }}
-                                      className="text-slate-400 hover:text-red-500 font-extrabold text-[12px] opacity-100 md:opacity-0 group-hover:opacity-100 transition-opacity ml-1 hover:scale-110 bg-transparent border-0"
-                                      title="Clear Shift"
-                                    >
-                                      ×
-                                    </button>
-                                  </div>
-                                  <p className="text-[8px] font-extrabold uppercase mt-1 truncate leading-none">{cellTmpl.name}</p>
-                                </div>
-                              ) : (
-                                <div
-                                  onClick={() => {
-                                    setEditingCell({ employeeId: emp.employeeId || emp.id, date: cellDateStr });
-                                  }}
-                                  className="border border-dashed border-slate-250 rounded-xl hover:border-[#3f809e] hover:bg-[#3f809e]/5 cursor-pointer h-[52px] flex items-center justify-center transition-all group"
-                                >
-                                  <span className="text-[14px] text-slate-300 group-hover:text-[#3f809e] font-black transition-all">+</span>
-                                </div>
-                              )}
-
-                              {isEditingThis && (
-                                <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-white rounded-xl border border-slate-200 shadow-xl p-2.5 z-10 w-44 space-y-1.5 animate-in fade-in zoom-in-95 duration-100">
-                                  <div className="flex items-center justify-between border-b border-slate-100 pb-1">
-                                    <span className="text-[8px] font-black uppercase tracking-wider text-slate-400">Select Shift</span>
-                                    <button
-                                      onClick={() => setEditingCell(null)}
-                                      className="text-slate-400 hover:text-slate-600 font-extrabold text-[10px] bg-transparent border-0 cursor-pointer"
-                                    >
-                                      CLOSE
-                                    </button>
-                                  </div>
-
-                                  <div className="grid grid-cols-1 gap-1">
-                                    {SHIFT_TEMPLATES.map(tmpl => (
-                                      <button
-                                        key={tmpl.id}
-                                        onClick={() => {
-                                          handleAssignShift(emp.employeeId || emp.id, cellDateStr, tmpl.id);
-                                          setEditingCell(null);
-                                        }}
-                                        className="flex items-center gap-2 p-1.5 hover:bg-slate-50 rounded-lg text-left w-full transition-colors font-bold text-[9px] uppercase tracking-wide cursor-pointer bg-transparent border-0"
-                                      >
-                                        <div className={`w-1.5 h-1.5 rounded-full ${tmpl.dot}`} />
-                                        <span className="text-slate-800">{tmpl.code} - {tmpl.name}</span>
-                                      </button>
-                                    ))}
-                                    {schedule && (
-                                      <button
-                                        onClick={() => {
-                                          handleAssignShift(emp.employeeId || emp.id, cellDateStr, 'CLEAR');
-                                          setEditingCell(null);
-                                        }}
-                                        className="mt-1 flex items-center gap-2 p-1.5 hover:bg-rose-50 text-rose-600 rounded-lg text-left w-full transition-colors font-black text-[9px] uppercase tracking-wider cursor-pointer border border-rose-200 bg-transparent"
-                                      >
-                                        ❌ CLEAR SHIFT
-                                      </button>
-                                    )}
-                                  </div>
-                                </div>
-                              )}
-                            </td>
-                          );
-                        })}
-
-                        <td className="p-3 text-center border-l border-slate-150 font-mono">
-                          <span className={`text-[10px] font-black px-2 py-1 rounded-full ${
-                            totalHours >= 40 
-                              ? 'bg-emerald-50 text-emerald-800 border border-emerald-200' 
-                              : totalHours > 0 
-                                ? 'bg-indigo-50 text-indigo-800 border border-indigo-200' 
-                                : 'bg-slate-50 text-slate-400'
-                          }`}>
-                            {totalHours} hrs
-                          </span>
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-
-            <div className="flex flex-wrap items-center justify-between gap-4 pt-4 border-t border-slate-100 text-[8px] font-black uppercase tracking-wider text-slate-400">
-              <div className="flex items-center gap-1">
-                <span>💡 Navigation Tip:</span>
-                <span>Drop a card from pool OR drag an already assigned cell block to relocate shifts! Click direct squares for fast selector.</span>
-              </div>
-              <div className="flex items-center gap-4 flex-wrap">
-                <span>LEGEND:</span>
-                {SHIFT_TEMPLATES.map(t => (
-                  <div key={t.id} className="flex items-center gap-1">
-                    <div className={`w-1.5 h-1.5 rounded-full ${t.dot}`} />
-                    <span>{t.code} ({t.name} - {t.time})</span>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
-        </div>
       ) : (
         <div id="raw-scanner-log-hub-workspace" className="space-y-6">
           {/* Header Dashboard Banner */}
@@ -2904,65 +2347,8 @@ export default function Attendance() {
             </div>
           </div>
 
-          {/* Quick Metrics Cards */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-            {/* Total Raw */}
-            <div className="bg-white rounded-2xl p-4 border border-slate-150 shadow-sm flex items-center gap-4">
-              <div className="w-12 h-12 bg-slate-50 text-slate-600 rounded-xl flex items-center justify-center">
-                <Database size={20} />
-              </div>
-              <div className="font-sans">
-                <p className="text-[9px] font-black uppercase tracking-widest text-[#7a8b95]">ข้อมูลดิบสะสม</p>
-                <h4 className="text-xl font-black text-[#212c46] leading-none mt-1">{rawScannerLogs.length} รายการ</h4>
-                <p className="text-[8px] font-bold text-slate-400 mt-1">TOTAL STATIC ARCHIVES</p>
-              </div>
-            </div>
-
-            {/* Pending Process */}
-            <div className="bg-white rounded-2xl p-4 border border-slate-150 shadow-sm flex items-center gap-4">
-              <div className="w-12 h-12 bg-amber-50 text-amber-600 rounded-xl flex items-center justify-center animate-pulse">
-                <FileText size={20} />
-              </div>
-              <div className="font-sans">
-                <p className="text-[9px] font-black uppercase tracking-widest text-[#7a8b95]">รอดำเนินการซิงค์หลัก</p>
-                <h4 className="text-xl font-black text-amber-700 leading-none mt-1">
-                  {rawScannerLogs.filter(x => !x.isProcessed).length} แถว
-                </h4>
-                <p className="text-[8px] font-bold text-amber-500 mt-1">AWAITING SYSTEM SYNC</p>
-              </div>
-            </div>
-
-            {/* Processed Logs */}
-            <div className="bg-white rounded-2xl p-4 border border-slate-150 shadow-sm flex items-center gap-4">
-              <div className="w-12 h-12 bg-emerald-50 text-emerald-600 rounded-xl flex items-center justify-center">
-                <Check size={20} />
-              </div>
-              <div className="font-sans">
-                <p className="text-[9px] font-black uppercase tracking-widest text-[#7a8b95]">ประมวลผลเสร็จแล้ว</p>
-                <h4 className="text-xl font-black text-emerald-700 leading-none mt-1">
-                  {rawScannerLogs.filter(x => x.isProcessed).length} แถว
-                </h4>
-                <p className="text-[8px] font-bold text-emerald-500 mt-1">DEPLOYED TO TIMESHEETS</p>
-              </div>
-            </div>
-
-            {/* Match Rate Progress */}
-            <div className="bg-white rounded-2xl p-4 border border-slate-150 shadow-sm flex items-center gap-4">
-              <div className="w-12 h-12 bg-rose-50 text-rose-600 rounded-xl flex items-center justify-center">
-                <AlertTriangle size={20} />
-              </div>
-              <div className="font-sans">
-                <p className="text-[9px] font-black uppercase tracking-widest text-[#7a8b95]">รหัสที่ยังไม่ระบุตัวตน</p>
-                <h4 className="text-xl font-black text-rose-700 leading-none mt-1">
-                  {rawScannerLogs.filter(x => !x.isMatched).length} รายการ
-                </h4>
-                <p className="text-[8px] font-bold text-rose-500 mt-1">UNIDENTIFIED SCAN CODES</p>
-              </div>
-            </div>
-          </div>
-
           {/* Action Toolbar on Raw Database */}
-          <div className="bg-white rounded-3xl border border-slate-150 p-4 shadow-sm flex flex-col gap-4">
+          <div className="flex flex-col gap-4">
             
             {/* Filter Toolbar Header */}
             <div className="flex flex-col md:flex-row items-center justify-between gap-4 font-sans">
@@ -3406,11 +2792,11 @@ export default function Attendance() {
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100">
-                      <tr>
+                       <tr>
                         <td className="py-2 px-3">Morning Duty / ช่วงเช้า</td>
                         <td className="py-2 px-3 text-center font-bold text-emerald-800">{log.morningIn || '-'}</td>
                         <td className="py-2 px-3 text-center text-slate-600">{log.morningOut || '-'}</td>
-                        <td colSpan={2} rowSpan={2} className="py-3 px-3 text-right font-extrabold text-[14px] text-[#212c46] font-mono bg-slate-50 vertical-middle">
+                        <td rowSpan={2} className="py-3 px-3 text-right font-extrabold text-[14px] text-[#212c46] font-mono bg-slate-50 vertical-middle">
                           {Number(log.hours || 0).toFixed(2)} Hrs
                         </td>
                       </tr>
@@ -3964,6 +3350,15 @@ export default function Attendance() {
           </div>
         </DraggableModal>
       )}
+      <button
+        onClick={() => setGuideOpen(true)}
+        className="fixed right-0 top-[80px] z-[100] flex flex-col items-center justify-center gap-2 p-2.5 bg-white border border-r-0 border-slate-200 rounded-l-2xl shadow-lg hover:bg-[#932c2e] hover:border-[#932c2e] transition-all group backdrop-blur-md cursor-pointer"
+      >
+        <HelpCircle size={16} className="text-[#b58c4f] group-hover:text-white transition-colors" />
+        <span className="font-black tracking-[0.3em] [writing-mode:vertical-rl] rotate-180 whitespace-nowrap uppercase text-[11px] text-[#212c46] group-hover:text-white">USER GUIDE</span>
+      </button>
+
+      <UserGuidePanel isOpen={isGuideOpen} onClose={() => setGuideOpen(false)} />
     </div>
   );
 }

@@ -478,6 +478,24 @@ function SalaryMasterModal({ isOpen, onClose, record, onSave }: SalaryMasterModa
     );
 }
 
+function parseEmployeeName(emp: any) {
+  let nameTh = emp.nameTh || '';
+  let nameEn = emp.nameEn || '';
+  
+  if (emp.name && (!nameTh || !nameEn)) {
+    const match = emp.name.match(/^([^(]+)\s*(?:\(([^)]+)\))?/);
+    if (match) {
+      if (!nameTh) nameTh = match[1]?.trim() || '';
+      if (!nameEn) nameEn = match[2]?.trim() || match[1]?.trim() || '';
+    }
+  }
+  
+  return {
+    nameTh: nameTh || emp.name || '-',
+    nameEn: nameEn || emp.name || '-'
+  };
+}
+
 function ToastNotification({ message, onClose }: { message: string | null; onClose: () => void }) {
     if (!message) return null;
     return createPortal(
@@ -509,42 +527,128 @@ export default function SalaryMaster() {
     'cfg_deduct_tax': true
   });
 
+  const fetchAndLoad = async (forceRefresh = false) => {
+    try {
+      setIsLoading(true);
+      const [response, empResponse] = await Promise.all([
+        dbSync.read('salary_master', forceRefresh),
+        dbSync.read('employees', forceRefresh).catch(() => null)
+      ]);
+
+      let loadedItems: any[] = [];
+      if (Array.isArray(response)) {
+          loadedItems = response;
+      } else if (response && response.status === 'success' && response.data && Array.isArray(response.data.items)) {
+          loadedItems = response.data.items;
+      } else if (response && Array.isArray(response.items)) {
+          loadedItems = response.items;
+      }
+
+      let empList: any[] = [];
+      if (empResponse && empResponse.status === 'success' && empResponse.data && Array.isArray(empResponse.data.items)) {
+          empList = empResponse.data.items;
+      } else if (empResponse && Array.isArray(empResponse.items)) {
+          empList = empResponse.items;
+      } else if (Array.isArray(empResponse)) {
+          empList = empResponse;
+      }
+
+      let baseRecords = loadedItems.length > 0 ? loadedItems : INITIAL_SALARIES;
+      let hasPendingSync = false;
+      let mergedRecords = JSON.parse(JSON.stringify(baseRecords));
+
+      if (empList.length > 0) {
+          const salaryMapByEmpId = new Map(mergedRecords.map((r: any) => [String(r.empId || '').toLowerCase(), r]));
+
+          empList.forEach((emp: any) => {
+              const empId = emp.staffId || emp.employeeId;
+              if (!empId) return;
+
+              const parsedName = parseEmployeeName(emp);
+              const key = String(empId).toLowerCase();
+
+              const existingSal: any = salaryMapByEmpId.get(key);
+              if (existingSal) {
+                  let updated = false;
+                  const thVal = parsedName.nameTh || existingSal.nameTh || '-';
+                  const enVal = parsedName.nameEn || existingSal.nameEn || '-';
+                  const deptVal = emp.department || emp.dept || existingSal.dept || '-';
+                  const jtVal = emp.position || emp.jobTitle || existingSal.jobTitle || '-';
+                  
+                  if (existingSal.nameTh !== thVal) { existingSal.nameTh = thVal; updated = true; }
+                  if (existingSal.nameEn !== enVal) { existingSal.nameEn = enVal; updated = true; }
+                  if (existingSal.dept !== deptVal) { existingSal.dept = deptVal; updated = true; }
+                  if (existingSal.jobTitle !== jtVal) { existingSal.jobTitle = jtVal; updated = true; }
+                  const avatarImg = emp.image || emp.avatar || existingSal.image || '';
+                  if (existingSal.image !== avatarImg) { existingSal.image = avatarImg; updated = true; }
+                  const empStatus = emp.workStatus || emp.status || existingSal.status || 'Active';
+                  if (existingSal.status !== empStatus) { existingSal.status = empStatus; updated = true; }
+                  if (updated) {
+                      hasPendingSync = true;
+                  }
+              } else {
+                  const isPermanent = emp.jobStatus === 'Permanent' || emp.position === 'HR Manager' || emp.position === 'Senior Accountant' || emp.position === 'IT Lead';
+                  const defaultBase = isPermanent ? 15000 : 350;
+                  const newSal = {
+                      id: `sal-${empId}`,
+                      empId: empId,
+                      nameTh: parsedName.nameTh,
+                      nameEn: parsedName.nameEn,
+                      image: emp.image || emp.avatar || '',
+                      dept: emp.department || emp.dept || '-',
+                      jobTitle: emp.position || emp.jobTitle || '-',
+                      payType: isPermanent ? 'Monthly' : 'Daily',
+                      baseSalary: defaultBase,
+                      workingDays: isPermanent ? 30 : 26,
+                      allowancePos: 0,
+                      allowanceIncentive: 0,
+                      allowanceTravel: 0,
+                      allowanceMeal: 0,
+                      allowanceAccommodation: 0,
+                      allowanceRisk: 0,
+                      otherIncomes: [],
+                      deductTax: 0,
+                      deductSSO: 0,
+                      deductHousing: 0,
+                      deductLoan: 0,
+                      otherDeductions: [],
+                      bank: emp.bankName || emp.bank || 'KBank',
+                      bankAcc: emp.bankAccount || emp.bankAcc || '',
+                      status: emp.workStatus || emp.status || 'Active',
+                      lastUpdate: new Date().toISOString().slice(0, 10),
+                      history: []
+                  };
+                  mergedRecords.push(newSal);
+                  hasPendingSync = true;
+              }
+          });
+      }
+
+      if (hasPendingSync || loadedItems.length === 0 || forceRefresh) {
+          await dbSync.write('salary_master', mergedRecords);
+      }
+      setRecords(mergedRecords);
+      if (forceRefresh) {
+          setToast("Data Refreshed & Synced successfully! / ซิงค์ข้อมูลเรียบร้อย!");
+      }
+    } catch (err) {
+      console.error('[SalaryMaster] Loading/Sync failed: ', err);
+      setRecords(INITIAL_SALARIES);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   useEffect(() => {
-      const fetchAndLoad = async () => {
-        try {
-          setIsLoading(true);
-          const response = await dbSync.read('salary_master');
-          let loadedItems: any[] = [];
-          if (Array.isArray(response)) {
-              loadedItems = response;
-          } else if (response && response.status === 'success' && response.data && Array.isArray(response.data.items)) {
-              loadedItems = response.data.items;
-          } else if (response && Array.isArray(response.items)) {
-              loadedItems = response.items;
-          }
-          
-          if (loadedItems && loadedItems.length > 0) {
-            setRecords(loadedItems);
-          } else {
-            await dbSync.write('salary_master', INITIAL_SALARIES);
-            setRecords(INITIAL_SALARIES);
-          }
-        } catch (err) {
-          console.error('[SalaryMaster] Loading failed, fallbacks to internal seeds: ', err);
-          setRecords(INITIAL_SALARIES);
-        } finally {
-          setIsLoading(false);
-        }
-      };
       fetchAndLoad();
   }, []);
 
   const filteredRecords = useMemo(() => {
       return records.filter(r => {
-          const nameThStr = r.nameTh ? r.nameTh.toLowerCase() : '';
-          const nameEnStr = r.nameEn ? r.nameEn.toLowerCase() : '';
-          const empIdStr = r.empId ? r.empId.toLowerCase() : '';
-          const deptStr = r.dept ? r.dept.toLowerCase() : '';
+          const nameThStr = r.nameTh ? String(r.nameTh).toLowerCase() : '';
+          const nameEnStr = r.nameEn ? String(r.nameEn).toLowerCase() : '';
+          const empIdStr = r.empId ? String(r.empId).toLowerCase() : '';
+          const deptStr = r.dept ? String(r.dept).toLowerCase() : '';
           const matchSearch = nameThStr.includes(search.toLowerCase()) || 
                               nameEnStr.includes(search.toLowerCase()) ||
                               empIdStr.includes(search.toLowerCase());
@@ -653,6 +757,10 @@ export default function SalaryMaster() {
               </div>
               
               <div className="flex items-center gap-3">
+                  <button onClick={() => fetchAndLoad(true)} disabled={isLoading} className={`flex items-center gap-1.5 px-5 py-2.5 rounded-full border text-[10.5px] font-black uppercase tracking-widest transition-all cursor-pointer shadow-xs bg-white text-[#508660] border-[#508660]/35 hover:bg-[#508660]/10 ${isLoading ? 'opacity-40 cursor-not-allowed' : ''}`}>
+                      <RefreshCw size={13} className={isLoading ? 'animate-spin' : ''} /> {isLoading ? 'Refreshing...' : 'Refresh Data'}
+                  </button>
+                  
                   <button onClick={() => setShowValues(!showValues)} className={`flex items-center gap-1.5 px-5 py-2.5 rounded-full border text-[10.5px] font-black uppercase tracking-widest transition-all cursor-pointer shadow-xs ${showValues ? 'bg-white text-[#851c24] border-[#851c24]/35 shadow-sm' : 'bg-white text-[#475569] border-[#cbd5e1] hover:text-[#212c46]'}`}>
                       {showValues ? <Eye size={13} /> : <EyeOff size={13} />} {showValues ? 'Hide Values' : 'Show Values'}
                   </button>

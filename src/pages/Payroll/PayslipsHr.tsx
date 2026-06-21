@@ -2,6 +2,7 @@ import { UserGuidePanel } from '../../components/shared/UserGuidePanel';
 import KpiCard from '../../components/shared/KpiCard';
 import React, { useState, useEffect, useMemo } from 'react';
 import { createPortal } from 'react-dom';
+import { dbSync } from '../../services/dbSync';
 import * as Icons from 'lucide-react';
 import { 
   Receipt, Search, Download, Eye, X, ChevronLeft, ChevronRight, 
@@ -249,9 +250,101 @@ export default function PayslipsHr() {
   const [payrollPeriod, setPayrollPeriod] = useState(new Date().toISOString().slice(0, 7)); // YYYY-MM
   const [isGuideOpen, setIsGuideOpen] = useState(false);
   const [filterStatus, setFilterStatus] = useState('All');
+  const [isLoading, setIsLoading] = useState(false);
+
+  const [toast, setToast] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (toast) {
+      const timer = setTimeout(() => setToast(null), 3000);
+      return () => clearTimeout(timer);
+    }
+  }, [toast]);
 
   // Load from state/default
-  const [employees, setEmployees] = useState(DEFAULT_EMPLOYEES);
+  const [employees, setEmployees] = useState<any[]>([]);
+
+  const loadPayslips = async (forceRefresh = false) => {
+    try {
+      setIsLoading(true);
+      const [payRes, salRes] = await Promise.all([
+        dbSync.read('payroll_records', forceRefresh),
+        dbSync.read('salary_master', forceRefresh)
+      ]);
+
+      let payRecords: any[] = [];
+      if (payRes && payRes.status === 'success' && payRes.data?.items) {
+        payRecords = payRes.data.items;
+      } else if (Array.isArray(payRes)) {
+        payRecords = payRes;
+      }
+
+      let salRecords: any[] = [];
+      if (salRes && salRes.status === 'success' && salRes.data?.items) {
+        salRecords = salRes.data.items;
+      } else if (Array.isArray(salRes)) {
+        salRecords = salRes;
+      }
+
+      if (forceRefresh) {
+        setToast('Payslip records synchronised successfully! / รหัสการจ่ายซิงก์สำเร็จ!');
+      }
+
+        if (payRecords.length > 0) {
+          // Normalize payRecords to Payslip format
+          const mapped = payRecords.map((r: any) => ({
+            employeeId: r.empId || r.employeeId || '',
+            name: r.nameTh || r.nameEn || r.name || '',
+            department: r.dept || r.department || '',
+            position: r.jobTitle || r.position || '',
+            bankAccount: r.bankAccount || (r.bank ? `${r.bank} •••• ${String(r.bankAcc || '').slice(-4) || '1234'}` : 'Kasikornbank •••• 1245'),
+            baseSalary: Number(r.baseSalary) || 0,
+            otPay: Number(r.varOT) || 0,
+            incentives: Number(r.varBonus) || 0,
+            allowances: Number(r.fixedAllowances) || 0,
+            providentFund: Number(r.providentFund) || Math.round((Number(r.baseSalary) || 0) * 0.05),
+            tax: Number(r.deductTax) || 0,
+            socialSecurity: Number(r.deductSSO) || 0,
+            status: r.status === 'Paid' || r.status === 'Sent' ? 'Sent' : (r.status === 'Approved' ? 'Approved' : 'Draft'),
+            paymentDate: r.paymentDate || '2026-10-31'
+          }));
+          setEmployees(mapped);
+        } else {
+          // If no calculations performed, use salary_master as templates
+          const baseList = salRecords.length > 0 ? salRecords : [];
+          if (baseList.length > 0) {
+            const tempMapped = baseList.map((s: any) => ({
+              employeeId: s.empId,
+              name: s.nameTh || s.nameEn || '',
+              department: s.dept || '',
+              position: s.jobTitle || '',
+              bankAccount: s.bank ? `${s.bank} •••• ${String(s.bankAcc || '').slice(-4) || '1112'}` : 'Kasikornbank •••• 1245',
+              baseSalary: Number(s.baseSalary) || 0,
+              otPay: 0,
+              incentives: 0,
+              allowances: (Number(s.allowancePos) || 0) + (Number(s.allowanceIncentive) || 0) + (Number(s.allowanceTravel) || 0),
+              providentFund: Math.round((Number(s.baseSalary) || 0) * 0.05),
+              tax: Number(s.deductTax) || 0,
+              socialSecurity: Number(s.deductSSO) || 0,
+              status: 'Draft',
+              paymentDate: '2026-10-31'
+            }));
+            setEmployees(tempMapped);
+          } else {
+            setEmployees(DEFAULT_EMPLOYEES);
+          }
+      }
+    } catch (err) {
+      console.error('Failed to load dynamic payslips:', err);
+      setEmployees(DEFAULT_EMPLOYEES);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadPayslips();
+  }, [payrollPeriod]);
   
   // Modal states
   const [editModal, setEditModal] = useState<any>({ isOpen: false, employee: null });
@@ -269,9 +362,9 @@ export default function PayslipsHr() {
 
   const filteredEmployees = useMemo(() => {
     return employees.filter(emp => {
-      const matchSearch = emp.name.toLowerCase().includes(search.toLowerCase()) || 
-                          emp.employeeId.toLowerCase().includes(search.toLowerCase()) ||
-                          emp.department.toLowerCase().includes(search.toLowerCase());
+      const matchSearch = String(emp.name || '').toLowerCase().includes(search.toLowerCase()) || 
+                          String(emp.employeeId || '').toLowerCase().includes(search.toLowerCase()) ||
+                          String(emp.department || '').toLowerCase().includes(search.toLowerCase());
       const matchStatus = filterStatus === 'All' || emp.status === filterStatus;
       return matchSearch && matchStatus;
     });
@@ -290,24 +383,115 @@ export default function PayslipsHr() {
     return sum + (earns - deducts);
   }, 0);
 
+  // Helper to save current state of employees list back to database
+  const saveToDb = async (updatedEmployees: any[]) => {
+    try {
+      const payRes = await dbSync.read('payroll_records');
+      let payRecords: any[] = [];
+      if (payRes && payRes.status === 'success' && payRes.data?.items) {
+        payRecords = payRes.data.items;
+      } else if (Array.isArray(payRes)) {
+        payRecords = payRes;
+      }
+
+      const updatedPayRecords = payRecords.map(pay => {
+        const emp = updatedEmployees.find(e => e.employeeId === pay.empId);
+        if (emp) {
+          return {
+            ...pay,
+            baseSalary: emp.baseSalary,
+            varOT: emp.otPay,
+            varBonus: emp.incentives,
+            fixedAllowances: emp.allowances,
+            providentFund: emp.providentFund,
+            deductTax: emp.tax,
+            deductSSO: emp.socialSecurity,
+            status: emp.status === 'Sent' ? 'Paid' : (emp.status === 'Approved' ? 'Approved' : 'Draft'),
+            totalGross: emp.baseSalary + emp.otPay + emp.incentives + emp.allowances,
+            totalDeductions: emp.providentFund + emp.tax + emp.socialSecurity,
+            netPay: (emp.baseSalary + emp.otPay + emp.incentives + emp.allowances) - (emp.providentFund + emp.tax + emp.socialSecurity)
+          };
+        }
+        return pay;
+      });
+
+      await dbSync.write('payroll_records', updatedPayRecords);
+    } catch (err) {
+      console.error('Failed to sync changes back to payroll_records database:', err);
+    }
+  };
+
   // Handlers
-  const handleApproveAll = () => {
-    setEmployees(prev => prev.map(e => e.status === 'Draft' ? { ...e, status: 'Approved' } : e));
+  const handleApproveAll = async () => {
+    const nextList = employees.map(e => e.status === 'Draft' ? { ...e, status: 'Approved' } : e);
+    setEmployees(nextList);
+    await saveToDb(nextList);
     alert('Approved all draft payslips successfully!');
   };
 
-  const handlePublishAll = () => {
-    setEmployees(prev => prev.map(e => e.status === 'Approved' ? { ...e, status: 'Sent' } : e));
+  const handlePublishAll = async () => {
+    const nextList = employees.map(e => e.status === 'Approved' ? { ...e, status: 'Sent' } : e);
+    setEmployees(nextList);
+    await saveToDb(nextList);
     alert('Published all approved payslips successfully! Employee portals are now updated.');
   };
 
-  const handleUpdateSlave = (updatedEmp: any) => {
-    setEmployees(prev => prev.map(e => e.employeeId === updatedEmp.employeeId ? updatedEmp : e));
+  const handleUpdateSlave = async (updatedEmp: any) => {
+    const nextList = employees.map(e => e.employeeId === updatedEmp.employeeId ? updatedEmp : e);
+    setEmployees(nextList);
+    await saveToDb(nextList);
   };
 
-  const handleSyncFromCalculation = () => {
-    // Adding standard verification alerts
-    alert('Syncing records with modern computations...\nAuto-merged contracts and latest timesheet allocations matching 100%.');
+  const handleSyncFromCalculation = async () => {
+    setIsLoading(true);
+    try {
+      const [payRes, salRes] = await Promise.all([
+        dbSync.read('payroll_records'),
+        dbSync.read('salary_master')
+      ]);
+
+      let payRecords: any[] = [];
+      if (payRes && payRes.status === 'success' && payRes.data?.items) {
+        payRecords = payRes.data.items;
+      } else if (Array.isArray(payRes)) {
+        payRecords = payRes;
+      }
+
+      let salRecords: any[] = [];
+      if (salRes && salRes.status === 'success' && salRes.data?.items) {
+        salRecords = salRes.data.items;
+      } else if (Array.isArray(salRes)) {
+        salRecords = salRes;
+      }
+
+      if (payRecords.length > 0) {
+        const mapped = payRecords.map((r: any) => ({
+          employeeId: r.empId || r.employeeId || '',
+          name: r.nameTh || r.nameEn || r.name || '',
+          department: r.dept || r.department || '',
+          position: r.jobTitle || r.position || '',
+          bankAccount: r.bankAccount || (r.bank ? `${r.bank} •••• ${String(r.bankAcc || '').slice(-4) || '1112'}` : 'Kasikornbank •••• 1245'),
+          baseSalary: Number(r.baseSalary) || 0,
+          otPay: Number(r.varOT) || 0,
+          incentives: Number(r.varBonus) || 0,
+          allowances: Number(r.fixedAllowances) || 0,
+          providentFund: Number(r.providentFund) || Math.round((Number(r.baseSalary) || 0) * 0.05),
+          tax: Number(r.deductTax) || 0,
+          socialSecurity: Number(r.deductSSO) || 0,
+          status: r.status === 'Paid' || r.status === 'Sent' ? 'Sent' : (r.status === 'Approved' ? 'Approved' : 'Draft'),
+          paymentDate: r.paymentDate || '2026-10-31'
+        }));
+        setEmployees(mapped);
+        alert('ซิงค์ข้อมูลคำนวณเงินเดือนล่าสุดสำเร็จ ' + mapped.length + ' รายการ!');
+      } else {
+        alert('ไม่พบประวัติผลการประมวลเงินเดือนในระบบประมวลผล กรุณากดคำนวณเงินเดือนในหน้า "ประมวลผลเงินเดือน" ก่อนค่ะ');
+      }
+    } catch (e) {
+      console.error(e);
+      alert('เกิดข้อผิดพลาดในการเชื่อมโยงข้อมูลคำนวณเงินเดือนค่ะ');
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
@@ -547,6 +731,14 @@ export default function PayslipsHr() {
           </div>
 
           <div className="flex items-center gap-4">
+              <button 
+                  onClick={() => loadPayslips(true)} 
+                  disabled={isLoading} 
+                  className={`flex items-center gap-1.5 px-4 py-2.5 rounded-xl border text-[10.5px] font-black uppercase tracking-widest transition-all cursor-pointer shadow-xs bg-white text-[#508660] border-[#508660]/35 hover:bg-[#508660]/10 ${isLoading ? 'opacity-40 cursor-not-allowed' : ''}`}
+              >
+                  <RefreshCw size={13} className={isLoading ? 'animate-spin' : ''} /> {isLoading ? 'Refreshing...' : 'Refresh Data'}
+              </button>
+
               <div className="bg-white/50 p-1.5 rounded-xl border border-white/60 shadow-inner flex flex-wrap items-center gap-1">
                   <button onClick={() => setActiveTab('registry')} className={`px-6 py-2.5 rounded-lg text-[11px] font-black uppercase tracking-widest transition-all flex items-center gap-2 ${activeTab === 'registry' ? 'bg-[#212c46] text-white shadow-md' : 'text-[#7a8b95] hover:text-[#932c2e]'}`}>
                     <Database size={16} /> Slips Registry
@@ -648,7 +840,7 @@ export default function PayslipsHr() {
                             <td className="py-2.5 px-4 text-[12px] font-black text-[#212c46] uppercase">
                               <div className="flex items-center gap-3">
                                 <div className="w-10 h-10 rounded-xl bg-[#3f809e]/10 text-[#3f809e] border border-[#3f809e]/30 flex items-center justify-center font-extrabold text-[12px] shrink-0 font-mono">
-                                  {emp.employeeId.slice(3)}
+                                  {typeof emp.employeeId === 'string' ? (emp.employeeId.includes('-') ? emp.employeeId.split('-')[1] : emp.employeeId.slice(3)) : String(emp.employeeId || '')}
                                 </div>
                                 <div className="flex flex-col">
                                   <span className="font-extrabold text-[12.5px] leading-tight text-[#212c46]">{emp.name}</span>
@@ -826,6 +1018,13 @@ export default function PayslipsHr() {
             
         </div>
       </div>
+      
+      {toast && (
+        <div className="fixed bottom-5 right-5 z-[200] bg-[#212c46] text-white border-l-4 border-[#b58c4f] px-5 py-3 rounded-xl shadow-2xl flex items-center gap-2 text-xs font-black animate-slideIn">
+          <Icons.CheckCircle2 size={16} className="text-[#508660]" />
+          <span>{toast}</span>
+        </div>
+      )}
     </div>
   );
 }

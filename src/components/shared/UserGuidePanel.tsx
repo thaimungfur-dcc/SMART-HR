@@ -103,32 +103,37 @@ export const UserGuidePanel = ({ isOpen, onClose, title, desc }: any) => {
         }
       ];
     } else if (path.includes('/attendance') || path.includes('/time') || path.includes('/overtime')) {
-      guideConfig.title = 'ATTENDANCE DIRECTIVE';
-      guideConfig.subtitle = 'Time & Attendance Tracking';
+      guideConfig.title = 'TIME & ATTENDANCE DIRECTIVE';
+      guideConfig.subtitle = 'Machine Data Logs & Shift Integrity';
       guideConfig.sections = [
         {
-          icon: 'Clock',
+          icon: 'Database',
           iconColor: 'text-[#b7a159]',
-          title: '1. ข้อบังคับเวลาทำงาน (Time Rules)',
-          desc: 'ระบบลงเวลาทำงานอ้างอิงตามกะงาน (Shift Schedules) และช่วงเวลามาตรฐาน',
+          title: '1. การเชื่อมข้อมูลจากเครื่องสแกนนิ้วมือ (Scanner Import)',
+          desc: 'ระบบถูกจำกัดให้ดึงข้อมูลการลงเวลาทำงานผ่านรูปแบบไฟล์ดิบจากตัวเครื่องสแกนเท่านั้น เพื่อลดการแอบอ้าง:',
           points: [
-            { label: 'Check-In/Out', text: 'ข้อมูลการทาบบัตร สแกนนิ้ว และเข้าออกพื้นที่' },
-            { label: 'Lateness/Early Out', text: 'การหักสายและการออกก่อนเวลา' },
-            { label: 'Absence', text: 'ขาดงานโดยไม่แจ้งล่วงหน้า' },
+            { label: 'CSV Import Only', text: 'นำเข้าข้อมูลโดยใช้ไฟล์ .csv ที่ส่งออกจากโปรแกรมเครื่องสแกนนิ้ว/สแกนใบหน้า' },
+            { label: 'Auto-Matching', text: 'ระบบจะนำตารางเวลา (AC-No) ไปจับคู่กับรหัสพนักงานในฐานข้อมูล (Staff Index)' },
+            { label: 'No Manual Clock-In', text: 'ปิดระบบการลงเวลาบนหน้าเว็บไซต์หรือมือถือ' },
           ]
         },
         {
-          icon: 'Calendar',
+          icon: 'Clock',
           iconColor: 'text-[#d96245]',
-          title: '2. การอนุมัติล่วงเวลา (Overtime)',
-          desc: 'ขั้นตอนการเบิกจ่ายและอนุมัติชั่วโมงล่วงเวลา:',
-          blocks: ['📝 1: ร้องขอ OT', '✅ 2: อนุมัติโดยหัวหน้า', '📊 3: สรุปยอด', '💰 4: จ่ายผ่านเงินเดือน']
+          title: '2. ข้อบังคับเวลาทำงานมาตรฐาน (Standard Time Rules)',
+          desc: 'บริษัทใช้นโยบายกะการทำงานเวลาเดียวกัน สำหรับพนักงานทุกระดับ/ทุกแผนก:',
+          points: [
+            { label: 'Single Shift', text: 'เวลาเข้าทำงาน: 08:00 น. และ เวลาเลิกงาน: 17:00 น.' },
+            { label: 'Lateness', text: 'ระบบจะคำนวณสายและลงบันทึก เมื่อเวลามากกว่า 08:00 น.' },
+            { label: 'Absence', text: 'ขาดงานโดยไม่มีหลักฐานการสแกน และไม่มีใบลาที่ผ่านการอนุมัติ' },
+          ]
         },
         {
-          icon: 'Database',
+          icon: 'ClipboardList',
           iconColor: 'text-[#3f809e]',
-          title: '3. การเชื่อมข้อมูล Hardware',
-          desc: 'ระบบรับโอนข้อมูลจากเครื่องสแกนใบหน้า/ลายนิ้วมือ (Biometric Scanner) มาเทียบตารางกะอัตโนมัติ'
+          title: '3. ขั้นตอนนำเข้าข้อมูล (Daily Workflow)',
+          desc: 'พนักงาน HR ควรรวมข้อมูลสัปดาห์ละครั้งหรือรายวันผ่านกระบวนการดังนี้:',
+          blocks: ['📁 1: อัปโหลด CSV', '🔄 2: จับคู่รหัส', '⚙️ 3: ประมวลผล', '✅ 4: เผยแพร่ (Publish)']
         }
       ];
     } else if (path.includes('/leave')) {
@@ -257,11 +262,16 @@ export const UserGuidePanel = ({ isOpen, onClose, title, desc }: any) => {
             <div className={`fixed inset-0 z-[190] bg-[#212c46]/60 backdrop-blur-sm transition-opacity duration-500 ${isOpen ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'}`} onClick={onClose}/>
             <div className={`fixed inset-y-0 right-0 z-[200] w-full md:w-[500px] bg-white shadow-2xl transform transition-transform duration-500 ease-in-out flex flex-col border-l-2 border-[#b7a159] ${isOpen ? 'translate-x-0' : 'translate-x-full'}`}>
                 <div className="flex justify-between items-center p-5 px-6 border-b-2 border-[#b7a159] bg-[#212c46] text-white shrink-0">
-                    <div>
-                        <h3 className="font-black flex items-center gap-3 uppercase tracking-widest text-lg">
-                            <Icons.BookOpen size={22} className="text-[#b7a159]"/> {guideConfig.title}
-                        </h3>
-                        <p className="text-[12px] font-bold text-[#d7d7d7] uppercase tracking-widest mt-1.5">{guideConfig.subtitle}</p>
+                    <div className="flex-1">
+                        <div className="flex justify-between items-center w-full pr-4">
+                            <h3 className="font-black flex items-center gap-3 uppercase tracking-widest text-lg">
+                                <Icons.BookOpen size={22} className="text-[#b7a159]"/> {guideConfig.title}
+                            </h3>
+                        </div>
+                        <div className="flex items-center justify-between w-full mt-1.5 pr-4">
+                            <p className="text-[12px] font-bold text-[#d7d7d7] uppercase tracking-widest">{guideConfig.subtitle}</p>
+                            <span className="text-[9px] font-mono font-medium text-white/40 tracking-wider">v1.2.0 &bull; Last Updated: 18 Jun 2026</span>
+                        </div>
                     </div>
                     <button onClick={onClose} className="p-2 text-white/50 hover:text-[#932c2e] hover:bg-white/10 rounded-xl transition-colors"><Icons.X size={24}/></button>
                 </div>

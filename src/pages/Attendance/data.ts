@@ -1,9 +1,6 @@
 // Shift Options
 export const SHIFTS = [
-  { id: 'S1', name: 'Regular Shift (08:30 - 17:30)', start: '08:30', end: '17:30' },
-  { id: 'S2', name: 'Morning Shift (07:00 - 16:00)', start: '07:00', end: '16:00' },
-  { id: 'S3', name: 'Afternoon Shift (13:00 - 22:00)', start: '13:00', end: '22:00' },
-  { id: 'S4', name: 'Night Shift (22:00 - 07:00)', start: '22:00', end: '07:00' }
+  { id: 'M', name: 'Standard Regular Shift (08:00 - 17:00)', start: '08:00', end: '17:00' },
 ];
 
 // Seed Historical Monthly Trends

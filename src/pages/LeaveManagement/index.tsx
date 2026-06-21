@@ -102,12 +102,12 @@ const DEFAULT_MAP = {
 };
 
 // Helper to calculate leave cap status for any employee
-const getEmployeeQuotaStatus = (empName: string, empId: string, leavesList: any[]) => {
+const getEmployeeQuotaStatus = (empName: any, empId: any, leavesList: any[]) => {
   const caps = { Vacation: 12, Sick: 30, Business: 7 };
   const taken = { Vacation: 0, Sick: 0, Business: 0 };
   
-  const cleanEmpName = empName?.trim().toLowerCase().replace(/\s+/g, '') || '';
-  const cleanEmpId = empId?.trim().toLowerCase() || '';
+  const cleanEmpName = String(empName || '').trim().toLowerCase().replace(/\s+/g, '') || '';
+  const cleanEmpId = String(empId || '').trim().toLowerCase() || '';
 
   // Filter approved leaves for this employee for CURRENT YEAR
   const currentYear = new Date().getFullYear();

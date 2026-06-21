@@ -74,7 +74,7 @@ export function HistorySidebar({ isOpen, onClose, employeeId, employeeName }: Hi
   if (typeof document === 'undefined') return null;
 
   // Cleanup employee ID for exact match
-  const cleanEmpId = employeeId ? employeeId.trim() : '';
+  const cleanEmpId = employeeId ? String(employeeId).trim() : '';
   const historyList = MOCK_PUNISHMENT_RECORDS[cleanEmpId] || [];
 
   const getSeverityStyle = (severity: string) => {

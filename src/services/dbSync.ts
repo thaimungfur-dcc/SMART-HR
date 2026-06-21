@@ -6,6 +6,26 @@ import { api } from './api';
 /**
  * Sync mapping between Google Sheets and Firestore collections
  */
+function cleanForFirestore(obj: any): any {
+  if (obj === null || obj === undefined) {
+    return null;
+  }
+  if (Array.isArray(obj)) {
+    return obj.map(item => cleanForFirestore(item));
+  }
+  if (typeof obj === 'object') {
+    const cleaned: any = {};
+    for (const key of Object.keys(obj)) {
+      const val = obj[key];
+      if (val !== undefined && typeof val !== 'function') {
+        cleaned[key] = cleanForFirestore(val);
+      }
+    }
+    return cleaned;
+  }
+  return obj;
+}
+
 function getCollectionName(sheetName: string): string {
   const name = sheetName.toLowerCase();
   if (name === 'calendarevents' || name === 'calendar_events') {
@@ -421,9 +441,10 @@ export const dbSync = {
       for (const item of data) {
         const idStr = String(item.id || item.employeeId || 'log_' + Date.now() + '_' + Math.random().toString(36).substring(2, 7));
         const docRef = doc(db, colName, idStr);
+        const cleanedItem = cleanForFirestore(item);
         
         batch.set(docRef, {
-          ...item,
+          ...cleanedItem,
           id: idStr,
           createdAt: item.createdAt || new Date().toISOString(),
           updatedAt: new Date().toISOString()
@@ -499,9 +520,10 @@ export const dbSync = {
         }
         const idStr = String(item.id);
         const docRef = doc(db, colName, idStr);
+        const cleanedItem = cleanForFirestore(item);
         
         batch.set(docRef, {
-          ...item,
+          ...cleanedItem,
           updatedAt: new Date().toISOString()
         }, { merge: true });
       }
@@ -627,8 +649,9 @@ export const dbSync = {
       const idStr = String(item.id || item.employeeId || 'synced_' + Math.random().toString(36).substring(2, 7));
       syncedIds.add(idStr);
       const docRef = doc(db, colName, idStr);
+      const cleanedItem = cleanForFirestore(item);
       batch.set(docRef, {
-        ...item,
+        ...cleanedItem,
         id: idStr,
         createdAt: item.createdAt || new Date().toISOString(),
         updatedAt: item.updatedAt || new Date().toISOString()

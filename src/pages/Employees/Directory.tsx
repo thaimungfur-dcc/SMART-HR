@@ -645,6 +645,7 @@ export default function EmployeeDirectory() {
   const [isGuideOpen, setIsGuideOpen] = useState(false);
   const [modalState, setModalState] = useState<{ isOpen: boolean; user: any }>({ isOpen: false, user: null });
   const [toast, setToast] = useState<string | null>(null);
+  const [activeTab, setActiveTab] = useState<'list' | 'graphs'>('list');
 
    const [loading, setLoading] = useState(true);
    const [isSyncing, setIsSyncing] = useState(false);
@@ -749,6 +750,28 @@ export default function EmployeeDirectory() {
       users.forEach(u => { counts[u.office] = (counts[u.office] || 0) + 1; });
       return counts;
   }, [users]);
+
+  const contractCounts = useMemo(() => {
+    const counts: Record<string, number> = {};
+    users.forEach(u => {
+      const status = u.jobStatus || 'Permanent';
+      counts[status] = (counts[status] || 0) + 1;
+    });
+    return Object.entries(counts).map(([name, value]) => ({ name, value }));
+  }, [users]);
+
+  const workStatusCounts = useMemo(() => {
+    const counts: Record<string, number> = {};
+    users.forEach(u => {
+      const ws = u.workStatus || 'Active';
+      counts[ws] = (counts[ws] || 0) + 1;
+    });
+    return Object.entries(counts).map(([name, value]) => ({ name, value }));
+  }, [users]);
+
+  const officeDistribution = useMemo(() => {
+    return Object.entries(officeCounts).map(([name, value]) => ({ name, value }));
+  }, [officeCounts]);
 
   // Filtering Logic
   const filteredUsers = useMemo(() => {
@@ -963,70 +986,41 @@ export default function EmployeeDirectory() {
                 <KpiCard label={t('Departments')} value={distinctDeptsCount} icon="workflow" colorAccent={THEME.gold} colorValue={THEME.primary} desc={t('Active Branches')} />
             </div>
 
-            {/* ANALYTICS HUB */}
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 shrink-0">
-              <div className="lg:col-span-1 bg-white rounded-3xl p-5 border border-[#eaeaec] shadow-sm flex flex-col justify-between">
-                <div>
-                  <h4 className="text-xs font-black text-[#212c46] uppercase tracking-wider mb-1 flex items-center gap-2">
-                    <Icons.BarChart2 size={16} className="text-[#3f809e]" /> {t('Headcount by Department')}
-                  </h4>
-                  <p className="text-[9px] text-[#748ea1] font-black uppercase tracking-widest mb-4">{t('Departmental staff distribution')}</p>
-                </div>
-                <div className="h-48 flex items-center justify-center">
-                  {departmentCounts.length > 0 ? (
-                    <ResponsiveContainer width="100%" height="100%">
-                      <RechartsPieChart>
-                        <Pie
-                          data={departmentCounts}
-                          cx="50%"
-                          cy="50%"
-                          innerRadius={40}
-                          outerRadius={60}
-                          paddingAngle={4}
-                          dataKey="value"
-                        >
-                          {departmentCounts.map((entry, index) => (
-                            <Cell key={`cell-${index}`} fill={CHART_COLORS[index % CHART_COLORS.length]} />
-                          ))}
-                        </Pie>
-                        <Tooltip contentStyle={{ fontSize: '11px', fontFamily: 'monospace' }} />
-                        <Legend verticalAlign="bottom" height={36} iconType="circle" wrapperStyle={{ fontSize: '10px' }} />
-                      </RechartsPieChart>
-                    </ResponsiveContainer>
-                  ) : (
-                    <span className="text-xs text-slate-400 font-bold uppercase">{t('No headcount statistics')}</span>
-                  )}
-                </div>
-              </div>
-              <div className="lg:col-span-2 bg-gradient-to-br from-white to-[#f3f3f1] rounded-3xl p-5 border border-[#eaeaec] shadow-sm flex flex-col justify-between">
-                <div>
-                  <h4 className="text-xs font-black text-[#212c46] uppercase tracking-wider mb-1 flex items-center gap-2">
-                    <Icons.CheckCircle2 size={16} className="text-[#657f4d]" /> {t('Departmental Presence Density')}
-                  </h4>
-                  <p className="text-[9px] text-[#748ea1] font-black uppercase tracking-widest mb-4">{t('Rostered personnel count by specific active teams')}</p>
-                </div>
-                <div className="space-y-3">
-                  {departmentCounts.map((item, i) => {
-                    const percentage = totalHeadcount > 0 ? Math.round((item.value / totalHeadcount) * 100) : 0;
-                    return (
-                      <div key={i} className="flex items-center gap-4 group/bar">
-                        <div className="w-32 text-[9px] font-black text-[#435665] uppercase truncate tracking-tight">{item.name || 'Unassigned'}</div>
-                        <div className="flex-1 h-3.5 rounded-lg relative flex items-center bg-slate-200/50 shadow-inner overflow-hidden">
-                          <div className="h-full transition-all duration-1000 relative z-10 rounded-lg"
-                            style={{ width: `${percentage}%`, backgroundColor: CHART_COLORS[i % CHART_COLORS.length] }} />
-                        </div>
-                        <div className="w-16 text-right">
-                          <span className="text-[10px] font-black text-[#212c46]">{item.value} ({percentage}%)</span>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
+            {/* TABS SELECTOR --- Elegant Slate Toggle Pill */}
+            <div className="flex border-b border-[#eaeaec] shrink-0 pb-1 mt-2">
+                <button
+                    onClick={() => setActiveTab('list')}
+                    className={`pb-3 px-6 text-xs font-black uppercase tracking-wider relative transition-all cursor-pointer ${
+                        activeTab === 'list' ? 'text-[#212c46]' : 'text-slate-400 hover:text-slate-600'
+                    }`}
+                >
+                    <span className="flex items-center gap-2">
+                        <Icons.List size={14} className={activeTab === 'list' ? 'text-[#3f809e]' : 'text-slate-400'} />
+                        {t('Employee List')} / ข้อมูลพนักงาน
+                    </span>
+                    {activeTab === 'list' && (
+                        <div className="absolute bottom-0 left-0 right-0 h-1 bg-gradient-to-r from-[#3f809e] to-[#b58c4f] rounded-full" />
+                    )}
+                </button>
+                <button
+                    onClick={() => setActiveTab('graphs')}
+                    className={`pb-3 px-6 text-xs font-black uppercase tracking-wider relative transition-all cursor-pointer ${
+                        activeTab === 'graphs' ? 'text-[#212c46]' : 'text-slate-400 hover:text-slate-600'
+                    }`}
+                >
+                    <span className="flex items-center gap-2">
+                        <Icons.BarChart2 size={14} className={activeTab === 'graphs' ? 'text-[#b58c4f]' : 'text-slate-400'} />
+                        {t('Graphs & Statistics')} / กราฟและแผนภูมิสถิติ
+                    </span>
+                    {activeTab === 'graphs' && (
+                        <div className="absolute bottom-0 left-0 right-0 h-1 bg-gradient-to-r from-[#3f809e] to-[#b58c4f] rounded-full" />
+                    )}
+                </button>
             </div>
 
-            {/* MAIN DATA INTERACTIVE PORTAL CARD */}
-            <div className="bg-white rounded-3xl shadow-lg border border-[#eaeaec] overflow-hidden flex flex-col animate-fadeIn  flex-1 min-h-0">
+            {activeTab === 'list' ? (
+                /* MAIN DATA INTERACTIVE PORTAL CARD */
+                <div className="bg-white rounded-3xl shadow-lg border border-[#eaeaec] overflow-hidden flex flex-col animate-fadeIn flex-1 min-h-0">
                 
                 {/* ADVANCED TOOLBAR */}
                 <div className="px-8 py-4 border-b border-[#eaeaec] bg-[#f8f9fa] flex flex-col xl:flex-row justify-between items-start xl:items-center gap-4 shrink-0">
@@ -1221,6 +1215,191 @@ export default function EmployeeDirectory() {
                     </div>
                 </div>
             </div>
+        ) : (
+                <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 animate-fadeIn pb-8 overflow-y-auto max-h-[calc(100vh-280px)] custom-scrollbar pr-1 flex-1">
+                    {/* CARD 1: DEPARTMENT DISTRIBUTION DONUT CHART */}
+                    <div className="bg-white rounded-3xl p-6 border border-[#eaeaec] shadow-sm hover:shadow-md transition-all flex flex-col justify-between">
+                        <div>
+                            <div className="flex items-center justify-between mb-2">
+                                <h4 className="text-xs font-black text-[#212c46] uppercase tracking-wider flex items-center gap-2">
+                                    <Icons.PieChart size={18} className="text-[#3f809e]" /> {t('Headcount by Department')}
+                                </h4>
+                                <span className="bg-[#3f809e]/10 text-[#3f809e] text-[9px] font-black uppercase px-2.5 py-1 rounded-full">{distinctDeptsCount} {t('Depts')}</span>
+                            </div>
+                            <p className="text-[9px] text-[#748ea1] font-bold uppercase tracking-wider mb-4">Departmental staff distribution overview</p>
+                        </div>
+                        <div className="h-64 flex items-center justify-center relative">
+                            {departmentCounts.length > 0 ? (
+                                <>
+                                    <ResponsiveContainer width="100%" height="100%">
+                                        <RechartsPieChart>
+                                            <Pie
+                                                data={departmentCounts}
+                                                cx="50%"
+                                                cy="50%"
+                                                innerRadius={55}
+                                                outerRadius={85}
+                                                paddingAngle={4}
+                                                dataKey="value"
+                                            >
+                                                {departmentCounts.map((entry, index) => (
+                                                    <Cell key={`cell-${index}`} fill={CHART_COLORS[index % CHART_COLORS.length]} />
+                                                ))}
+                                            </Pie>
+                                            <Tooltip 
+                                                contentStyle={{ 
+                                                    fontSize: '11px', 
+                                                    fontFamily: 'monospace', 
+                                                    borderRadius: '12px', 
+                                                    border: '1px solid #eaeaec',
+                                                    boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' 
+                                                }} 
+                                            />
+                                        </RechartsPieChart>
+                                    </ResponsiveContainer>
+                                    <div className="absolute flex flex-col items-center justify-center">
+                                        <span className="text-3xl font-black text-[#212c46]">{totalHeadcount}</span>
+                                        <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Total Staff</span>
+                                    </div>
+                                </>
+                            ) : (
+                                <span className="text-xs text-slate-400 font-bold uppercase">{t('No headcount statistics')}</span>
+                            )}
+                        </div>
+                        <div className="mt-4 border-t border-slate-100 pt-4 grid grid-cols-2 gap-2 text-[10px] font-semibold text-slate-500 uppercase tracking-wide">
+                            {departmentCounts.slice(0, 4).map((d, i) => (
+                                <div key={i} className="flex items-center gap-1.5 truncate">
+                                    <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: CHART_COLORS[i % CHART_COLORS.length] }} />
+                                    <span className="truncate">{d.name}: <strong className="text-[#212c46] font-black">{d.value}</strong></span>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+
+                    {/* CARD 2: DEPARTMENTAL PRESENCE DENSITY (PROGRESS LIST) */}
+                    <div className="bg-gradient-to-br from-white to-[#fcfcfb] rounded-3xl p-6 border border-[#eaeaec] shadow-sm hover:shadow-md transition-all flex flex-col lg:col-span-2">
+                        <div className="flex items-center justify-between mb-1">
+                            <h4 className="text-xs font-black text-[#212c46] uppercase tracking-wider flex items-center gap-2">
+                                <Icons.BarChart2 size={18} className="text-[#657f4d]" /> {t('Departmental Presence Density')}
+                            </h4>
+                            <span className="bg-[#657f4d]/10 text-[#657f4d] text-[9px] font-black uppercase px-2.5 py-1 rounded-full">🥇 Top Rank Matrix</span>
+                        </div>
+                        <p className="text-[9px] text-[#748ea1] font-bold uppercase tracking-wider mb-4">Rostered personnel count by specific active teams</p>
+                        
+                        <div className="space-y-3 overflow-y-auto max-h-[310px] pr-2 custom-scrollbar flex-1">
+                            {departmentCounts.map((item, i) => {
+                                const percentage = totalHeadcount > 0 ? Math.round((item.value / totalHeadcount) * 100) : 0;
+                                return (
+                                    <div key={i} className="flex items-center gap-4 group/bar">
+                                        <div className="w-36 text-[10px] font-black text-[#435665] uppercase truncate tracking-tight flex items-center gap-1.5">
+                                            <span className="text-[9px] text-[#b58c4f] font-mono w-4 shrink-0">#{i + 1}</span>
+                                            <span className="truncate">{item.name || 'Unassigned'}</span>
+                                        </div>
+                                        <div className="flex-1 h-3.5 rounded-full relative flex items-center bg-slate-200/40 shadow-inner overflow-hidden">
+                                            <div 
+                                                className="h-full transition-all duration-1000 relative z-10 rounded-full"
+                                                style={{ width: `${percentage}%`, backgroundColor: CHART_COLORS[i % CHART_COLORS.length] }} 
+                                            />
+                                        </div>
+                                        <div className="w-20 text-right shrink-0">
+                                            <span className="text-[10px] font-black text-[#212c46] bg-slate-100 px-2 py-0.5 rounded-md font-mono">{item.value} ({percentage}%)</span>
+                                        </div>
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    </div>
+
+                    {/* CARD 3: CONTRACT STATUS DISTRIBUTION (KPI RING BADGES GRID) */}
+                    <div className="bg-white rounded-3xl p-6 border border-[#eaeaec] shadow-sm hover:shadow-md transition-all flex flex-col justify-between">
+                        <div>
+                            <div className="flex items-center justify-between mb-2">
+                                <h4 className="text-xs font-black text-[#212c46] uppercase tracking-wider flex items-center gap-2">
+                                    <Icons.Briefcase size={18} className="text-[#b58c4f]" /> {t('Contract Type Ratios')}
+                                </h4>
+                                <span className="bg-[#b58c4f]/10 text-[#b58c4f] text-[9px] font-black uppercase px-2.5 py-1 rounded-full">{contractCounts.filter(c => c.value > 0).length} Types</span>
+                            </div>
+                            <p className="text-[9px] text-[#748ea1] font-bold uppercase tracking-wider mb-4">Distribution by employment tenure & structure</p>
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-3 flex-1 mt-2">
+                            {contractCounts.map((item, i) => {
+                                const percentage = totalHeadcount > 0 ? Math.round((item.value / totalHeadcount) * 100) : 0;
+                                const isPermanent = item.name === 'Permanent';
+                                
+                                return (
+                                    <div key={i} className={`p-3.5 rounded-2xl border flex flex-col justify-between transition-all hover:scale-[1.02] ${
+                                        isPermanent ? 'bg-[#212c46] text-white border-[#212c46]' : 'bg-slate-50/75 text-slate-800 border-slate-100'
+                                    }`}>
+                                        <div className="flex items-center justify-between">
+                                            <span className="text-[9px] font-black uppercase tracking-wider">{t(item.name)}</span>
+                                            <span className={`text-[8px] font-black px-1.5 py-0.5 rounded-full ${
+                                                isPermanent ? 'bg-white/15 text-white' : 'bg-slate-200/50 text-slate-600'
+                                            }`}>{percentage}%</span>
+                                        </div>
+                                        <div className="mt-2 flex items-baseline gap-1">
+                                            <span className="text-xl font-black font-tech leading-none">{item.value}</span>
+                                            <span className="text-[8px] uppercase tracking-widest font-black opacity-60">Staff</span>
+                                        </div>
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    </div>
+
+                    {/* CARD 4: REGIONAL OFFICES & WORK STATUS HUB */}
+                    <div className="bg-white rounded-3xl p-6 border border-[#eaeaec] shadow-sm hover:shadow-md transition-all flex flex-col lg:col-span-2">
+                        <div className="flex items-center justify-between mb-1">
+                            <h4 className="text-xs font-black text-[#212c46] uppercase tracking-wider flex items-center gap-2">
+                                <Icons.Building2 size={18} className="text-[#3f809e]" /> {t('Office Operations Branch Ratios')}
+                            </h4>
+                            <span className="bg-[#3f809e]/10 text-[#3f809e] text-[9px] font-black uppercase px-2.5 py-1 rounded-full">HQ & Facility Node</span>
+                        </div>
+                        <p className="text-[9px] text-[#748ea1] font-bold uppercase tracking-wider mb-4">Location placement comparison mapping</p>
+
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 flex-1">
+                            {/* Office Ratios List */}
+                            <div className="space-y-2 flex flex-col justify-center">
+                                {officeDistribution.map((item, i) => {
+                                    const percentage = totalHeadcount > 0 ? Math.round((item.value / totalHeadcount) * 100) : 0;
+                                    return (
+                                        <div key={i} className="p-3 bg-slate-50/50 rounded-2xl border border-slate-100">
+                                            <div className="flex items-center justify-between text-[11px] font-black text-[#212c46] uppercase tracking-tight">
+                                                <span>{item.name}</span>
+                                                <span className="font-mono">{item.value}</span>
+                                            </div>
+                                            <div className="h-2 rounded-full bg-slate-200/50 mt-1.5 overflow-hidden">
+                                                <div className="h-full rounded-full bg-[#3f809e]" style={{ width: `${percentage}%` }} />
+                                            </div>
+                                        </div>
+                                    );
+                                })}
+                            </div>
+
+                            {/* Duty Status Breakdown */}
+                            <div className="bg-slate-50/40 border border-slate-100 p-4 rounded-2xl flex flex-col justify-between">
+                                <span className="text-[10px] font-black text-[#212c46] uppercase tracking-widest">Active vs Inactive Personnel</span>
+                                <div className="space-y-2 mt-2">
+                                    {workStatusCounts.map((item, i) => {
+                                        const color = 
+                                            item.name === 'Active' ? 'bg-[#657f4d]' : 
+                                            item.name === 'Resigned' ? 'bg-[#932c2e]' : 'bg-amber-500';
+                                        return (
+                                            <div key={i} className="flex items-center justify-between text-[10px]">
+                                                <div className="flex items-center gap-1.5 font-bold text-slate-500 uppercase">
+                                                    <span className={`w-2 h-2 rounded-full ${color}`} />
+                                                    <span>{t(item.name)}</span>
+                                                </div>
+                                                <span className="font-black text-[#212c46] bg-white border border-slate-100 px-2.5 py-0.5 rounded-lg font-mono">{item.value}</span>
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
             
             
         </div>

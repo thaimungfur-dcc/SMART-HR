@@ -213,6 +213,42 @@ function doGet(e) {
 
 // --- Action Handlers ---
 
+function findHeaderRowIndex(sheet, sheetName) {
+  const canonical = GLOBAL_SHEETS_CONFIG[sheetName] || [];
+  if (canonical.length === 0) return 0; // fallback to row 0 index (Row 1)
+  
+  const lastRow = Math.min(sheet.getLastRow(), 30);
+  if (lastRow <= 0) return 0;
+  
+  const values = sheet.getRange(1, 1, lastRow, Math.max(1, sheet.getLastColumn())).getValues();
+  
+  let bestRowIndex = 0;
+  let maxMatches = 0;
+  
+  for (let r = 0; r < values.length; r++) {
+    let matches = 0;
+    const row = values[r];
+    for (let c = 0; c < row.length; c++) {
+      const cellVal = String(row[c]).trim().toLowerCase().replace(/\s/g, '');
+      if (cellVal === '') continue;
+      for (const canon of canonical) {
+        if (canon.toLowerCase().replace(/\s/g, '') === cellVal) {
+          matches++;
+        }
+      }
+    }
+    if (matches > maxMatches) {
+      maxMatches = matches;
+      bestRowIndex = r;
+    }
+  }
+  
+  if (maxMatches >= 2) {
+    return bestRowIndex;
+  }
+  return 0; // default to first row if no header matches
+}
+
 function readData(sheet, params, headersObj) {
   const values = sheet.getDataRange().getValues();
   if (values.length <= 1) {
@@ -220,7 +256,8 @@ function readData(sheet, params, headersObj) {
   }
 
   const sheetName = params.sheet;
-  const sheetHeaders = values[0];
+  const headerRowIdx = findHeaderRowIndex(sheet, sheetName);
+  const sheetHeaders = values[headerRowIdx];
   const canonicalHeaders = GLOBAL_SHEETS_CONFIG[sheetName] || [];
 
   const headerMap = {};
@@ -238,7 +275,7 @@ function readData(sheet, params, headersObj) {
     headerMap[i] = mapped;
   });
 
-  let data = values.slice(1).map(row => {
+  let data = values.slice(headerRowIdx + 1).map(row => {
     const obj = {};
     sheetHeaders.forEach((_, i) => {
       const key = headerMap[i];
@@ -262,6 +299,14 @@ function readData(sheet, params, headersObj) {
     return obj;
   });
 
+  // Filter out completely empty or blank placeholder rows in the spreadsheet
+  data = data.filter(item => {
+    return Object.keys(item).some(k => {
+      const val = item[k];
+      return val !== "" && val !== null && val !== undefined && String(val).trim() !== "";
+    });
+  });
+
   const limit = params.limit || null;
   const offset = params.offset || 0;
   
@@ -282,14 +327,17 @@ function writeData(sheet, data, headersObj) {
   if (!Array.isArray(data)) data = [data];
   if (data.length === 0) return createResponse("success", "No data to write", null, headersObj);
 
-  var sheetHeaders = sheet.getRange(1, 1, 1, Math.max(1, sheet.getLastColumn())).getValues()[0];
+  const sheetName = sheet.getName();
+  const headerRowIdx = findHeaderRowIndex(sheet, sheetName);
+
+  var sheetHeaders = sheet.getRange(headerRowIdx + 1, 1, 1, Math.max(1, sheet.getLastColumn())).getValues()[0];
   if (!sheetHeaders || sheetHeaders.length === 0 || sheetHeaders[0] === "") {
     sheetHeaders = Object.keys(data[0]);
     if (sheetHeaders.length === 0) sheetHeaders = ["id"];
     if (sheetHeaders.length > sheet.getMaxColumns()) {
       sheet.insertColumnsAfter(sheet.getMaxColumns(), sheetHeaders.length - sheet.getMaxColumns());
     }
-    sheet.getRange(1, 1, 1, sheetHeaders.length).setValues([sheetHeaders])
+    sheet.getRange(headerRowIdx + 1, 1, 1, sheetHeaders.length).setValues([sheetHeaders])
       .setFontWeight("bold")
       .setBackground("#e8ecef")
       .setFontColor("black");
@@ -330,7 +378,10 @@ function updateData(sheet, data, headersObj) {
 
   const range = sheet.getDataRange();
   const values = range.getValues();
-  const headers = values[0];
+  const sheetName = sheet.getName();
+  const headerRowIdx = findHeaderRowIndex(sheet, sheetName);
+  
+  const headers = values[headerRowIdx];
   const idIndex = headers.indexOf('id');
   if (idIndex === -1) return createResponse("error", "'id' column not found for update", null, headersObj);
 
@@ -340,7 +391,7 @@ function updateData(sheet, data, headersObj) {
     if (item.id != null) updatesMap[String(item.id)] = item;
   });
 
-  for (let i = 1; i < values.length; i++) {
+  for (let i = headerRowIdx + 1; i < values.length; i++) {
     const rowId = String(values[i][idIndex]);
     if (updatesMap[rowId]) {
       const updateItem = updatesMap[rowId];
@@ -368,15 +419,18 @@ function deleteData(sheet, data, headersObj) {
 
   const range = sheet.getDataRange();
   const values = range.getValues();
-  const headers = values[0];
+  const sheetName = sheet.getName();
+  const headerRowIdx = findHeaderRowIndex(sheet, sheetName);
+  
+  const headers = values[headerRowIdx];
   const idIndex = headers.indexOf('id');
   if (idIndex === -1) return createResponse("error", "'id' column not found for delete", null, headersObj);
 
   const idsToDelete = new Set(data.map(item => String(item.id)));
-  const newValues = [headers];
+  const newValues = values.slice(0, headerRowIdx + 1);
   let deletedCount = 0;
 
-  for (let i = 1; i < values.length; i++) {
+  for (let i = headerRowIdx + 1; i < values.length; i++) {
     if (!idsToDelete.has(String(values[i][idIndex]))) {
       newValues.push(values[i]);
     } else {
@@ -402,10 +456,13 @@ function lookupData(sheet, params, headersObj) {
   
   var rows = sheet.getDataRange().getValues();
   if (rows.length <= 1) return createResponse("success", "No data found", { items: [] }, headersObj);
-  var sheetHeaders = rows[0];
+  
+  const sheetName = sheet.getName();
+  const headerRowIdx = findHeaderRowIndex(sheet, sheetName);
+  var sheetHeaders = rows[headerRowIdx];
   var result = [];
   
-  for (var i = 1; i < rows.length; i++) {
+  for (var i = headerRowIdx + 1; i < rows.length; i++) {
       var match = true;
       for (var c = 0; c < criteriaKeys.length; c++) {
           var key = criteriaKeys[c];

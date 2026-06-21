@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { 
-  Building2, DollarSign, Download, Lock, Eye, EyeOff, ShieldCheck, Printer, Users, ChevronRight, Sparkles 
+  Building2, DollarSign, Download, Lock, Eye, EyeOff, ShieldCheck, Printer, Users, ChevronRight, Sparkles, RefreshCw
 } from 'lucide-react';
+import { dbSync } from '../../services/dbSync';
 import { motion } from 'motion/react';
 import Swal from 'sweetalert2';
 import withReactContent from 'sweetalert2-react-content';
@@ -151,6 +152,8 @@ export const generateQrSvgString = (id: string, labelText: string = "VERIFIED SY
 
 export default function Payslips() {
   const [employees, setEmployees] = useState<PayslipData[]>([]);
+  const [allDbRecords, setAllDbRecords] = useState<any[]>([]);
+  const [periods, setPeriods] = useState<string[]>(['May 2026', 'April 2026', 'March 2026']);
   const [selectedEmpId, setSelectedEmpId] = useState('CA-10245');
   const [selectedMonth, setSelectedMonth] = useState('May 2026');
   const [paperSize, setPaperSize] = useState<'a4' | 'letter' | 'legal'>('a4');
@@ -169,33 +172,102 @@ export default function Payslips() {
     };
   }, [paperSize]);
 
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const [toast, setToast] = useState<string | null>(null);
+
   useEffect(() => {
-    // Sync with main roster in localStorage if available
-    const saved = localStorage.getItem('local_payroll_salaries');
-    if (saved) {
-      try {
-        const raw = JSON.parse(saved);
-        setEmployees(raw.map((r: any) => ({
-          employeeId: r.employeeId || '',
-          name: r.name || '',
-          department: r.department || '',
-          position: r.position || '',
-          bankAccount: r.bankAccount || 'Kasikornbank •••• 1245',
-          baseSalary: r.baseSalary || 0,
-          otPay: r.otPay || 0,
-          incentives: r.incentives || 0,
-          allowances: r.allowances || 0,
-          providentFund: r.providentFund || 0,
-          tax: r.tax || 0,
-          socialSecurity: r.socialSecurity || 0
-        })));
-      } catch (e) {
+    if (toast) {
+      const timer = setTimeout(() => setToast(null), 3000);
+      return () => clearTimeout(timer);
+    }
+  }, [toast]);
+
+  const fetchPayslips = async (forceRefresh = false) => {
+    try {
+      setIsRefreshing(true);
+      const payRes = await dbSync.read('payroll_records', forceRefresh);
+      let rawRecords: any[] = [];
+      if (payRes && payRes.status === 'success' && payRes.data?.items) {
+        rawRecords = payRes.data.items;
+      } else if (Array.isArray(payRes)) {
+        rawRecords = payRes;
+      }
+
+      if (rawRecords.length > 0) {
+        setAllDbRecords(rawRecords);
+        
+        // Get distinct periods
+        const distinctPeriods = Array.from(new Set(rawRecords.map(r => r.period).filter(Boolean))) as string[];
+        if (distinctPeriods.length > 0) {
+          setPeriods(distinctPeriods);
+          if (forceRefresh || !selectedMonth) {
+            setSelectedMonth(distinctPeriods[0]);
+          }
+        } else {
+          setPeriods(['May 2026', 'April 2026', 'March 2026']);
+          if (forceRefresh || !selectedMonth) {
+            setSelectedMonth('May 2026');
+          }
+        }
+      } else {
+        // Fallback / seed behavior
+        setEmployees(DEFAULT_EMPLOYEES);
+        setPeriods(['May 2026', 'April 2026', 'March 2026']);
+        if (forceRefresh || !selectedMonth) {
+          setSelectedMonth('May 2026');
+        }
+      }
+      if (forceRefresh) {
+        setToast('Historical payslips refreshed! / ซิงค์ข้อมูลสลิปสำเร็จ!');
+      }
+    } catch (err) {
+      console.error('Failed to load payroll records for staff payslips:', err);
+      setEmployees(DEFAULT_EMPLOYEES);
+      setPeriods(['May 2026', 'April 2026', 'March 2026']);
+      if (forceRefresh || !selectedMonth) {
+        setSelectedMonth('May 2026');
+      }
+    } finally {
+      setIsRefreshing(false);
+    }
+  };
+
+  // Load calculated database records on mount
+  useEffect(() => {
+    fetchPayslips();
+  }, []);
+
+  // Filter and map pay slips whenever selected month or database records change
+  useEffect(() => {
+    if (allDbRecords.length > 0) {
+      const filtered = allDbRecords.filter(r => r.period === selectedMonth);
+      if (filtered.length > 0) {
+        const mapped = filtered.map((r: any) => ({
+          employeeId: r.empId || r.employeeId || '',
+          name: r.nameTh || r.nameEn || r.name || '',
+          department: r.dept || r.department || '',
+          position: r.jobTitle || r.position || '',
+          bankAccount: r.bankAccount || (r.bank ? `${r.bank} •••• ${String(r.bankAcc || '').slice(-4) || '1234'}` : 'Kasikornbank •••• 1245'),
+          baseSalary: Number(r.baseSalary) || 0,
+          otPay: Number(r.varOT) || 0,
+          incentives: Number(r.varBonus) || 0,
+          allowances: Number(r.fixedAllowances) || 0,
+          providentFund: Number(r.providentFund) || Math.round((Number(r.baseSalary) || 0) * 0.05),
+          tax: Number(r.deductTax) || 0,
+          socialSecurity: Number(r.deductSSO) || 0
+        }));
+        setEmployees(mapped);
+        
+        // Ensure standard selected employee is set to a valid id in this list
+        const exists = mapped.some(e => e.employeeId === selectedEmpId);
+        if (!exists && mapped.length > 0) {
+          setSelectedEmpId(mapped[0].employeeId);
+        }
+      } else {
         setEmployees(DEFAULT_EMPLOYEES);
       }
-    } else {
-      setEmployees(DEFAULT_EMPLOYEES);
     }
-  }, []);
+  }, [selectedMonth, allDbRecords]);
 
   const currentEmp = employees.find(e => e.employeeId === selectedEmpId) || employees[0] || DEFAULT_EMPLOYEES[0];
 
@@ -458,9 +530,19 @@ export default function Payslips() {
 
   return (
     <div className="px-4 sm:px-8 py-6 space-y-6 w-full">
-      <div>
-        <h1 className="text-2xl font-black text-[#212c46] tracking-tight uppercase">SECURED INDIVIDUAL PAYSLIPS</h1>
-        <p className="text-xs font-bold text-[#7a8b95] uppercase tracking-wider">ใบกระจายรายเดือนและใบพิจารณาสอบยอดกองทุนสวัสดิการของพนักงาน</p>
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-black text-[#212c46] tracking-tight uppercase">SECURED INDIVIDUAL PAYSLIPS</h1>
+          <p className="text-xs font-bold text-[#7a8b95] uppercase tracking-wider">ใบกระจายรายเดือนและใบพิจารณาสอบยอดกองทุนสวัสดิการของพนักงาน</p>
+        </div>
+
+        <button 
+          onClick={() => fetchPayslips(true)} 
+          disabled={isRefreshing} 
+          className={`flex items-center gap-1.5 px-4 py-2.5 rounded-xl border text-[10.5px] font-black uppercase tracking-widest transition-all cursor-pointer shadow-xs bg-white text-[#508660] border-[#508660]/35 hover:bg-[#508660]/10 shrink-0 ${isRefreshing ? 'opacity-40 cursor-not-allowed' : ''}`}
+        >
+          <RefreshCw size={13} className={isRefreshing ? 'animate-spin' : ''} /> {isRefreshing ? 'Refreshing...' : 'Refresh Data'}
+        </button>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
@@ -557,9 +639,9 @@ export default function Payslips() {
                       onChange={(e) => setSelectedMonth(e.target.value)}
                       className="p-1 px-2 border border-slate-200 rounded-lg text-[10px] font-extrabold text-[#212c46] outline-none bg-white focus:border-[#b58c4f]"
                     >
-                      <option value="May 2026">May 2026</option>
-                      <option value="April 2026">April 2026</option>
-                      <option value="March 2026">March 2026</option>
+                      {periods.map(period => (
+                        <option key={period} value={period}>{period}</option>
+                      ))}
                     </select>
                   </div>
 
@@ -721,6 +803,13 @@ export default function Payslips() {
           )}
         </div>
       </div>
+
+      {toast && (
+        <div className="fixed bottom-5 right-5 z-[200] bg-[#212c46] text-white border-l-4 border-[#b58c4f] px-5 py-3 rounded-xl shadow-2xl flex items-center gap-2 text-xs font-black animate-slideIn">
+          <ShieldCheck size={16} className="text-[#508660]" />
+          <span>{toast}</span>
+        </div>
+      )}
     </div>
   );
 }

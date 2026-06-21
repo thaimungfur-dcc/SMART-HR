@@ -12,6 +12,7 @@ import {
 import { DraggableModal } from '../../components/shared/DraggableModal';
 import { dataExportService } from '../../services/dataExportService';
 import { PrintPreviewModal } from '../../components/shared/PrintPreviewModal';
+import { dbSync } from '../../services/dbSync';
 
 const THEME = {
   bgMain: 'transparent',
@@ -256,6 +257,32 @@ export default function PayrollCalculation() {
   const [payrollPeriod, setPayrollPeriod] = useState(new Date().toISOString().slice(0, 7)); // YYYY-MM
   const [payCycle, setPayCycle] = useState('Monthly'); // 'Monthly', 'Daily_H1', 'Daily_H2'
   const [isProcessing, setIsProcessing] = useState(false);
+
+  const fetchPayrollData = async (forceRefresh = false) => {
+    try {
+      setIsProcessing(true);
+      const payRes = await dbSync.read('payroll_records', forceRefresh);
+      let loadedPayrolls: any[] = [];
+      if (payRes && payRes.status === 'success' && payRes.data?.items) {
+        loadedPayrolls = payRes.data.items;
+      } else if (Array.isArray(payRes)) {
+        loadedPayrolls = payRes;
+      }
+      setRecords(loadedPayrolls);
+      if (forceRefresh) {
+        setToast({ msg: 'Calculation ledger refreshed successfully! / ซิงค์ประวัติแล้ว!', type: 'success' });
+      }
+    } catch (err) {
+      console.error('Failed to load payroll calculations from database:', err);
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
+  // Load calculated records from database
+  useEffect(() => {
+    fetchPayrollData();
+  }, []);
   
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(10);
@@ -319,9 +346,9 @@ export default function PayrollCalculation() {
   // Filter records
   const filteredRecords = useMemo(() => {
       return records.filter(r => {
-          const matchSearch = r.nameTh.toLowerCase().includes(search.toLowerCase()) || 
-                              r.nameEn.toLowerCase().includes(search.toLowerCase()) ||
-                              r.empId.toLowerCase().includes(search.toLowerCase());
+          const matchSearch = String(r.nameTh || '').toLowerCase().includes(search.toLowerCase()) || 
+                              String(r.nameEn || '').toLowerCase().includes(search.toLowerCase()) ||
+                              String(r.empId || '').toLowerCase().includes(search.toLowerCase());
           const matchStatus = filterStatus === 'All' || r.status === filterStatus;
           return matchSearch && matchStatus && r.periodId === currentPeriodLabel;
       });
@@ -336,9 +363,44 @@ export default function PayrollCalculation() {
   const totalNetPay = filteredRecords.reduce((sum, r) => sum + r.netPay, 0);
 
   // Sync compute simulator
-  const runPayrollEngine = () => {
+  const runPayrollEngine = async () => {
       setIsProcessing(true);
-      setTimeout(() => {
+      try {
+          // Read up-to-date salary master records dynamically
+          const salRes = await dbSync.read('salary_master');
+          let salList: any[] = [];
+          if (salRes && salRes.status === 'success' && salRes.data?.items) {
+            salList = salRes.data.items;
+          } else if (Array.isArray(salRes)) {
+            salList = salRes;
+          }
+
+          const baseTemplates = salList.length > 0 ? salList.map(s => ({
+              empId: s.empId,
+              nameTh: s.nameTh,
+              nameEn: s.nameEn,
+              dept: s.dept,
+              jobTitle: s.jobTitle,
+              image: s.image || 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&w=150&q=80',
+              payType: s.payType || 'Monthly',
+              baseSalary: Number(s.baseSalary) || 15000,
+              workingDays: Number(s.workingDays) || 30,
+              fixedAllowances: (Number(s.allowancePos) || 0) + 
+                               (Number(s.allowanceIncentive) || 0) + 
+                               (Number(s.allowanceTravel) || 0) + 
+                               (Number(s.allowanceMeal) || 0) + 
+                               (Number(s.allowanceAccommodation) || 0) + 
+                               (Number(s.allowanceRisk) || 0) +
+                               (Array.isArray(s.otherIncomes) ? s.otherIncomes.reduce((acc: number, item: any) => acc + (Number(item.amount) || 0), 0) : 0),
+              fixedDeductions: (Number(s.deductTax) || 0) + 
+                               (Number(s.deductSSO) || 0) + 
+                               (Number(s.deductHousing) || 0) + 
+                               (Number(s.deductLoan) || 0) +
+                               (Array.isArray(s.otherDeductions) ? s.otherDeductions.reduce((acc: number, item: any) => acc + (Number(item.amount) || 0), 0) : 0),
+              bank: s.bank || 'KBank',
+              bankAcc: s.bankAcc || ''
+          })) : MOCK_MASTER_DATA;
+
           const exists = records.some(r => r.periodId === currentPeriodLabel);
           if (exists) {
               setToast({ msg: `ระบบประมวลผลสำหรับงวดตัวเลือกนี้เสร็จสิ้นแล้ว`, type: 'error' });
@@ -347,7 +409,7 @@ export default function PayrollCalculation() {
           }
 
           // Filter template list
-          const targetEmployees = MOCK_MASTER_DATA.filter(master => {
+          const targetEmployees = baseTemplates.filter(master => {
               if (payCycle === 'Monthly') return master.payType === 'Monthly';
               return master.payType === 'Daily';
           });
@@ -381,7 +443,7 @@ export default function PayrollCalculation() {
 
               return {
                   ...master,
-                  id: Date.now() + index,
+                  id: Date.now() + index + Math.floor(Math.random() * 100),
                   periodId: currentPeriodLabel,
                   period: `${payrollPeriod} [${periodName}]`,
                   status: 'Draft',
@@ -391,24 +453,34 @@ export default function PayrollCalculation() {
               };
           });
 
-          setRecords(prev => [...generatedRecords, ...prev]);
+          const updatedRecords = [...generatedRecords, ...records];
+          await dbSync.write('payroll_records', updatedRecords);
+          setRecords(updatedRecords);
           setToast({ msg: `ประมวลผลสำเร็จ ${generatedRecords.length} รายการ`, type: 'success' });
+      } catch (err) {
+          console.error(err);
+          setToast({ msg: 'เกิดข้อผิดพลาดในการคำนวณเงินเดือน', type: 'error' });
+      } finally {
           setIsProcessing(false);
-      }, 1200);
+      }
   };
 
-  const handleApproveAll = () => {
+  const handleApproveAll = async () => {
       const draftIds = filteredRecords.filter(r => r.status === 'Draft').map(r => r.id);
       if (draftIds.length === 0) {
           setToast({ msg: 'คงไม่มีรายการที่จะอนุมัติเพิ่ม', type: 'error' });
           return;
       }
-      setRecords(prev => prev.map(r => draftIds.includes(r.id) ? { ...r, status: 'Approved' } : r));
+      const updated = records.map(r => draftIds.includes(r.id) ? { ...r, status: 'Approved' } : r);
+      await dbSync.write('payroll_records', updated);
+      setRecords(updated);
       setToast({ msg: `อนุมัติปิดแฟ้มรอบเงินเดือน ${draftIds.length} รายการสำเร็จ`, type: 'success' });
   };
 
-  const handleSaveRecord = (updatedData: any) => {
-      setRecords(prev => prev.map(r => r.id === updatedData.id ? updatedData : r));
+  const handleSaveRecord = async (updatedData: any) => {
+      const updated = records.map(r => r.id === updatedData.id ? updatedData : r);
+      await dbSync.write('payroll_records', updated);
+      setRecords(updated);
       setToast({ msg: 'ปรับปรุงชาร์จยอดรายได้พิเศษสำเร็จ', type: 'success' });
   };
 
@@ -689,6 +761,14 @@ export default function PayrollCalculation() {
               </div>
 
               <div className="flex items-center gap-4">
+                  <button 
+                      onClick={() => fetchPayrollData(true)} 
+                      disabled={isProcessing} 
+                      className={`flex items-center gap-1.5 px-4 py-2 rounded-xl border text-[10.5px] font-black uppercase tracking-widest transition-all cursor-pointer shadow-xs bg-white text-[#508660] border-[#508660]/35 hover:bg-[#508660]/10 ${isProcessing ? 'opacity-40 cursor-not-allowed' : ''}`}
+                  >
+                      <RefreshCw size={12} className={isProcessing ? 'animate-spin' : ''} /> {isProcessing ? 'Refreshing...' : 'Refresh Data'}
+                  </button>
+
                   <div className="relative flex items-center bg-white/55 backdrop-blur-sm border border-[#eaeaec] p-1.5 rounded-xl shadow-sm">
                       <Calendar size={14} className="text-[#b58c4f] mr-2" />
                       <span className="text-[10px] font-black text-[#606a5f] uppercase tracking-widest mr-2">Period:</span>
