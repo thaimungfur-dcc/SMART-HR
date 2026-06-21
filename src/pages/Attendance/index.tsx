@@ -177,6 +177,8 @@ export default function Attendance() {
   const [isParsing, setIsParsing] = useState<boolean>(false);
   const [deductLunch, setDeductLunch] = useState<boolean>(true);
   const [filterOnlyWarnings, setFilterOnlyWarnings] = useState<boolean>(false);
+  const [previewPage, setPreviewPage] = useState<number>(1);
+  const previewPerPage = 50;
 
   // Helper utility to parse scanner dates
   const parseScannerDate = (dateStr: string, forceMMDDYYYY?: boolean): string => {
@@ -594,6 +596,10 @@ export default function Attendance() {
     setRawLogsPage(1);
   }, [rawSearchName, rawSearchDate, rawSearchDept, rawSearchStatus, activeSubTab]);
 
+  useEffect(() => {
+    setPreviewPage(1);
+  }, [filterOnlyWarnings, parsedRows.length]);
+
   const handleCsvFileUpload = (e: React.ChangeEvent<HTMLInputElement> | React.DragEvent<HTMLDivElement>) => {
     try {
       e.preventDefault();
@@ -733,6 +739,47 @@ export default function Attendance() {
                            dateHeader.toLowerCase().includes('mm-dd') || 
                            dateHeader.toLowerCase().includes('m-d-yyyy');
 
+        // Pre-build index lookups for faster O(1) checks under the loop to eliminate nested array searches (O(N*M))
+        const attendanceLogMap = new Map<string, any>();
+        attendanceLogs.forEach(lg => {
+          if (lg.employeeId && lg.date) {
+            attendanceLogMap.set(`${lg.employeeId}_${lg.date}`, lg);
+          }
+        });
+
+        const employeeByIdMap = new Map<string, any>();
+        const employeeByNameMap = new Map<string, any>();
+        employees.forEach(emp => {
+          const empId = String(emp.employeeId || emp.id || '').trim().toLowerCase();
+          if (empId) {
+            employeeByIdMap.set(empId, emp);
+            employeeByIdMap.set(empId.replace(/\D/g, ''), emp);
+          }
+          const empName = String(emp.nameTh || emp.nameThFirst || emp.name || '').replace(/\s+/g, '').toLowerCase().trim();
+          if (empName) {
+            employeeByNameMap.set(empName, emp);
+          }
+        });
+
+        const fastFindBestEmployee = (csvName: string, csvAcNo: string): any | null => {
+          if (!csvName && !csvAcNo) return null;
+          
+          const cleanAcNo = csvAcNo ? csvAcNo.replace(/\s+/g, '').toLowerCase() : '';
+          if (cleanAcNo) {
+            const match = employeeByIdMap.get(cleanAcNo);
+            if (match) return match;
+          }
+
+          const cleanCsvName = csvName ? csvName.replace(/\s+/g, '').toLowerCase() : '';
+          if (cleanCsvName) {
+            const match = employeeByNameMap.get(cleanCsvName);
+            if (match) return match;
+          }
+
+          // Fallback to accurate split token fuzzy match only if exact fails
+          return findBestEmployeeMatch(csvName, csvAcNo, employees);
+        };
+
         for (let r = headerRowIdx + 1; r < lines.length; r++) {
           const rowData = lines[r];
           if (!rowData || rowData.length < 2) continue;
@@ -858,16 +905,12 @@ export default function Attendance() {
             }
           }
 
-          const matchedEmployee = findBestEmployeeMatch(rawName, rawAcNo, employees);
+          const matchedEmployee = fastFindBestEmployee(rawName, rawAcNo);
           const matchedEmployeeId = matchedEmployee ? matchedEmployee.employeeId : '';
           const matchedEmployeeName = matchedEmployee ? matchedEmployee.name : rawName;
 
-          const hasConflict = attendanceLogs.some(
-            l => l.employeeId === matchedEmployeeId && l.date === formattedDate
-          );
-          const existingLog = attendanceLogs.find(
-            l => l.employeeId === matchedEmployeeId && l.date === formattedDate
-          );
+          const existingLog = matchedEmployeeId ? attendanceLogMap.get(`${matchedEmployeeId}_${formattedDate}`) : undefined;
+          const hasConflict = !!existingLog;
 
           newParsedRows.push({
             rowId: `row-${r}-${Date.now().toString().slice(8)}`,
@@ -3263,8 +3306,8 @@ export default function Attendance() {
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100">
-                      {parsedRows
-                        .filter(row => {
+                      {(() => {
+                        const filtered = parsedRows.filter(row => {
                           if (!filterOnlyWarnings) return true;
                           const isAcNoMissing = !row.acNo;
                           const isNameMissing = !row.name;
@@ -3272,8 +3315,20 @@ export default function Attendance() {
                           const isTimesMissing = !row.checkIn && !row.checkOut;
                           const isEmployeeUnmatched = !row.isMatched;
                           return isAcNoMissing || isNameMissing || isDateInvalid || isTimesMissing || isEmployeeUnmatched;
-                        })
-                        .map((row) => {
+                        });
+
+                        const paginated = filtered.slice((previewPage - 1) * previewPerPage, previewPage * previewPerPage);
+                        if (paginated.length === 0) {
+                          return (
+                            <tr>
+                              <td colSpan={6} className="p-8 text-center text-slate-400 font-sans font-bold">
+                                --- ไม่พบแถวข้อมูลตามตัวกรอง ---
+                              </td>
+                            </tr>
+                          );
+                        }
+
+                        return paginated.map((row) => {
                           const isAcNoMissing = !row.acNo;
                           const isNameMissing = !row.name;
                           const isDateInvalid = !row.formattedDate || row.formattedDate === 'Invalid Date' || row.formattedDate === '';
@@ -3421,10 +3476,52 @@ export default function Attendance() {
                               </td>
                             </tr>
                           );
-                        })}
+                        });
+                      })()}
                     </tbody>
                   </table>
                 </div>
+
+                {/* Pagination Controls for Preview */}
+                {(() => {
+                  const filtered = parsedRows.filter(row => {
+                    if (!filterOnlyWarnings) return true;
+                    const isAcNoMissing = !row.acNo;
+                    const isNameMissing = !row.name;
+                    const isDateInvalid = !row.formattedDate || row.formattedDate === 'Invalid Date' || row.formattedDate === '';
+                    const isTimesMissing = !row.checkIn && !row.checkOut;
+                    const isEmployeeUnmatched = !row.isMatched;
+                    return isAcNoMissing || isNameMissing || isDateInvalid || isTimesMissing || isEmployeeUnmatched;
+                  });
+                  const total = filtered.length;
+                  const totalPages = Math.ceil(total / previewPerPage);
+                  if (totalPages <= 1) return null;
+
+                  return (
+                    <div className="flex items-center justify-between bg-slate-50 px-4 py-2 border border-slate-200 rounded-xl mb-4 font-sans text-[10px]">
+                      <div className="text-slate-500 font-bold">
+                        แสดง {(previewPage - 1) * previewPerPage + 1} - {Math.min(previewPage * previewPerPage, total)} จาก {total} รายการที่กรอง
+                      </div>
+                      <div className="flex items-center gap-1.5 font-bold">
+                        <button
+                          disabled={previewPage === 1}
+                          onClick={() => setPreviewPage(prev => Math.max(1, prev - 1))}
+                          className="px-2.5 py-1 rounded bg-white border border-slate-200 hover:bg-slate-100 disabled:opacity-50 text-slate-700 font-bold cursor-pointer"
+                        >
+                          ก่อนหน้า (Prev)
+                        </button>
+                        <span className="text-slate-600 font-black">หน้า {previewPage} / {totalPages}</span>
+                        <button
+                          disabled={previewPage === totalPages}
+                          onClick={() => setPreviewPage(prev => Math.min(totalPages, prev + 1))}
+                          className="px-2.5 py-1 rounded bg-white border border-slate-200 hover:bg-slate-100 disabled:opacity-50 text-slate-700 font-bold cursor-pointer"
+                        >
+                          ถัดไป (Next)
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })()}
 
                 {/* Footer Controls of Preview Step */}
                 <div className="flex items-center justify-between gap-4 pt-2">
