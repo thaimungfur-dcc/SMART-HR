@@ -31,7 +31,7 @@ const KpiCard: React.FC<KpiCardProps> = ({
     };
 
     return (
-        <div className="bg-white rounded-2xl p-6 shadow-soft border border-gray-100/80 relative overflow-hidden group h-full transition-all duration-300">
+        <div className="bg-white rounded-2xl p-6 shadow-soft border border-gray-100/80 relative overflow-hidden group h-full flex flex-col justify-between transition-all duration-300 font-exception-system">
             {/* Watermark Icon */}
             <div className="absolute -right-6 -bottom-6 opacity-[0.05] transform rotate-12 group-hover:scale-110 transition-all duration-500 pointer-events-none z-0">
                 <LucideIcon name={icon} size={100} color={color} />
@@ -40,20 +40,20 @@ const KpiCard: React.FC<KpiCardProps> = ({
             <div className="relative z-10 flex justify-between items-start">
                 <div className="flex-1 min-w-0 flex flex-col gap-1">
                     {/* KPI Title */}
-                    <p className="sys-kpi-label opacity-90 truncate">
+                    <p className="text-[12px] font-black uppercase text-[#414757]/90 truncate">
                         {displayTitle}
                     </p>
                     
                     {/* KPI Value */}
                     <div className="flex items-baseline gap-2 mt-1">
-                        <h4 className="sys-kpi-value truncate" style={{ color }}>
+                        <h4 className="text-3xl font-black truncate drop-shadow-sm" style={{ color }}>
                             {value}
                         </h4>
                     </div>
 
                     {/* KPI Description */}
                     {displayDescription && (
-                        <p className="sys-kpi-desc flex items-center gap-1.5 truncate">
+                        <p className="text-[11px] font-semibold text-[#8691a6] flex items-center gap-1.5 truncate mt-1">
                             <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: color }}></span>
                             {displayDescription}
                         </p>
@@ -62,8 +62,8 @@ const KpiCard: React.FC<KpiCardProps> = ({
 
                 {/* Main Icon Box */}
                 <div 
-                    className="w-12 h-12 rounded-xl flex items-center justify-center shrink-0 shadow-sm border border-white transition-transform duration-300 group-hover:rotate-6" 
-                    style={{ backgroundColor: getAlphaColor(color, '30') }} // 20% Opacity (Hex 33)
+                    className="w-12 h-12 rounded-xl flex items-center justify-center shrink-0 shadow-sm border-2 border-white transition-transform duration-300 group-hover:rotate-6" 
+                    style={{ backgroundColor: getAlphaColor(color, '33') }} // 20% Opacity (Hex 33)
                 >
                     <LucideIcon name={icon} size={22} color={color} />
                 </div>

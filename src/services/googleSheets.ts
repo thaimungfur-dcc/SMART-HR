@@ -1,4 +1,4 @@
-export const SCRIPT_URL = import.meta.env.VITE_APPS_SCRIPT_URL;
+export const SCRIPT_URL = import.meta.env.VITE_APPS_SCRIPT_URL || "https://script.google.com/macros/s/AKfycbzKqCNRIPzEsElUeDdpVRqLUc30iwnl9-DdEa-zfV1d_BAUjcvNt12VUgHYMRWYF7R9_A/exec";
 
 export interface SheetResponse {
   status: 'success' | 'error';

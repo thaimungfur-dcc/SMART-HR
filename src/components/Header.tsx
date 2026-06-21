@@ -142,7 +142,7 @@ export default function Header({ onOpenPendingPanel }: HeaderProps = {}) {
       }
 
       // 2. Check Database (GAS ERP Webapp Endpoint)
-      const scriptUrl = import.meta.env.VITE_APPS_SCRIPT_URL;
+      const scriptUrl = import.meta.env.VITE_APPS_SCRIPT_URL || 'https://script.google.com/macros/s/AKfycbzKqCNRIPzEsElUeDdpVRqLUc30iwnl9-DdEa-zfV1d_BAUjcvNt12VUgHYMRWYF7R9_A/exec';
       if (!scriptUrl) {
         setDbStatus('local');
       } else {

@@ -80,6 +80,9 @@ function setupDatabase() {
     }
     // ตั้งค่าหัวตาราง (Headers)
     const headers = sheetsConfig[name];
+    if (headers.length > sheet.getMaxColumns()) {
+      sheet.insertColumnsAfter(sheet.getMaxColumns(), headers.length - sheet.getMaxColumns());
+    }
     sheet.getRange(1, 1, 1, headers.length).setValues([headers])
       .setFontWeight("bold")
       .setBackground("#e8ecef")
@@ -150,6 +153,9 @@ function doPost(e) {
       }
 
       if (columns && columns.length > 0) {
+        if (columns.length > sheet.getMaxColumns()) {
+          sheet.insertColumnsAfter(sheet.getMaxColumns(), columns.length - sheet.getMaxColumns());
+        }
         sheet.getRange(1, 1, 1, columns.length).setValues([columns])
           .setFontWeight("bold")
           .setBackground("#e8ecef")
@@ -279,6 +285,10 @@ function writeData(sheet, data, headersObj) {
   var sheetHeaders = sheet.getRange(1, 1, 1, Math.max(1, sheet.getLastColumn())).getValues()[0];
   if (!sheetHeaders || sheetHeaders.length === 0 || sheetHeaders[0] === "") {
     sheetHeaders = Object.keys(data[0]);
+    if (sheetHeaders.length === 0) sheetHeaders = ["id"];
+    if (sheetHeaders.length > sheet.getMaxColumns()) {
+      sheet.insertColumnsAfter(sheet.getMaxColumns(), sheetHeaders.length - sheet.getMaxColumns());
+    }
     sheet.getRange(1, 1, 1, sheetHeaders.length).setValues([sheetHeaders])
       .setFontWeight("bold")
       .setBackground("#e8ecef")
@@ -294,6 +304,15 @@ function writeData(sheet, data, headersObj) {
   });
   
   const lastRow = sheet.getLastRow();
+  const requiredRows = lastRow + rows.length;
+  if (requiredRows > sheet.getMaxRows()) {
+    sheet.insertRowsAfter(sheet.getMaxRows(), requiredRows - sheet.getMaxRows());
+  }
+  
+  if (sheetHeaders.length > sheet.getMaxColumns()) {
+    sheet.insertColumnsAfter(sheet.getMaxColumns(), sheetHeaders.length - sheet.getMaxColumns());
+  }
+  
   sheet.getRange(lastRow + 1, 1, rows.length, sheetHeaders.length).setValues(rows);
   
   const maxRows = sheet.getMaxRows();

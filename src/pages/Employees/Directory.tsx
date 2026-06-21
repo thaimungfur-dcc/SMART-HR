@@ -5,13 +5,15 @@ import {
   Users, Search, Plus, Pencil, Trash2, X, Save, ChevronLeft, ChevronRight, 
   HelpCircle, CheckCircle2, AlertTriangle, Building2, Briefcase, Phone, 
   Mail, MapPin, GraduationCap, HeartPulse, CreditCard, Calendar, UploadCloud,
-  FileText, ShieldCheck, Download, Camera, Link, Eye, ClipboardList, Database, Award
+  FileText, ShieldCheck, Download, Camera, Link, Eye, ClipboardList, Database, Award,
+  RefreshCw
 } from 'lucide-react';
 import Swal from 'sweetalert2';
 import withReactContent from 'sweetalert2-react-content';
 import { DraggableModal } from '../../components/shared/DraggableModal';
 import { useLanguage } from '../../context/LanguageContext';
 import { dbSync } from '../../services/dbSync';
+import { UserGuidePanel } from '../../components/shared/UserGuidePanel';
 import {
   ResponsiveContainer,
   PieChart as RechartsPieChart,
@@ -318,87 +320,38 @@ const EMPTY_EMPLOYEE = {
 };
 
 const KpiCard = ({ icon, value, label, colorAccent, colorValue, desc }: any) => (
-    <div className="bg-white/90 px-6 py-6 rounded-2xl border border-[#eaeaec] shadow-sm min-w-[200px] relative overflow-hidden group hover:border-[#b7a159] transition-all flex flex-col justify-between animate-fadeIn pb-6 flex-1 min-h-0">
-        <div className="absolute -right-4 -bottom-6 opacity-[0.05] transform group-hover:scale-110 transition-transform duration-700 pointer-events-none">
-            <LucideIcon name={icon} size={110} color={colorAccent} />
+    <div className="bg-white rounded-2xl p-6 border border-gray-100/80 shadow-soft h-full relative overflow-hidden group hover:border-[#b7a159] transition-all flex flex-col justify-between animate-fadeIn min-w-[200px] font-exception-system">
+        <div className="absolute -right-6 -bottom-6 opacity-[0.05] transform rotate-12 group-hover:scale-110 transition-all duration-500 pointer-events-none z-0">
+            <LucideIcon name={icon} size={100} color={colorAccent} />
         </div>
-        <div className="relative z-10 flex justify-between items-start w-full">
-            <p className="text-[11px] font-bold text-[#7a8b95] uppercase tracking-[0.1em] drop-shadow-sm">{label}</p>
-            <div className={`w-10 h-10 rounded-xl border flex items-center justify-center shrink-0 shadow-sm transition-all group-hover:rotate-6`} style={{backgroundColor: `${colorAccent}15`, borderColor: `${colorAccent}25`, color: colorAccent}}>
-                <LucideIcon name={icon} size={20} />
+        
+        <div className="relative z-10 flex justify-between items-start">
+            <div className="flex-1 min-w-0 flex flex-col gap-1">
+                <p className="text-[12px] font-black uppercase text-[#414757]/90 truncate tracking-[0.1em]">
+                    {label}
+                </p>
+                <div className="flex items-baseline gap-2 mt-1">
+                    <h4 className="text-3xl font-black truncate drop-shadow-sm" style={{color: colorValue}}>
+                        {value}
+                    </h4>
+                </div>
+                {desc && (
+                    <p className="text-[11px] font-semibold text-[#8691a6] flex items-center gap-1.5 truncate mt-1">
+                        <span className="w-1.5 h-1.5 rounded-full animate-pulse" style={{backgroundColor: colorAccent}}></span>
+                        {desc}
+                    </p>
+                )}
             </div>
-        </div>
-        <div className="relative z-10 mt-2 flex items-end justify-between">
-            <p className="text-[28px] font-black leading-none text-[#212c46]" style={{color: colorValue}}>
-                {value}
-            </p>
-            <span className="text-[11px] font-bold text-[#4d87a8] uppercase tracking-widest flex items-center gap-1">
-                <span className="w-1.5 h-1.5 rounded-full bg-current animate-pulse"></span> {desc}
-            </span>
+
+            <div 
+                className="w-12 h-12 rounded-xl border-2 border-white flex items-center justify-center shrink-0 shadow-sm transition-transform duration-300 group-hover:rotate-6"
+                style={{backgroundColor: `${colorAccent}33`}}
+            >
+                <LucideIcon name={icon} size={22} color={colorAccent} />
+            </div>
         </div>
     </div>
 );
-
-function UserGuidePanel({ isOpen, onClose }: { isOpen: boolean; onClose: () => void }) {
-  if (typeof document === 'undefined') return null;
-  return createPortal(
-    <>
-      <div className={`fixed inset-0 z-[190] bg-[#212c46]/60 backdrop-blur-sm transition-opacity duration-500 ${isOpen ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'}`} onClick={onClose}/>
-      <div className={`fixed inset-y-0 right-0 z-[200] w-full md:w-[500px] bg-white shadow-2xl transform transition-transform duration-500 ease-in-out flex flex-col border-l-2 border-[#b7a159] ${isOpen ? 'translate-x-0' : 'translate-x-full'}`}>
-        <div className="flex justify-between items-center p-5 px-6 border-b-2 border-[#b7a159] bg-[#212c46] text-white shrink-0">
-          <div>
-            <h3 className="font-black flex items-center gap-3 uppercase tracking-widest text-lg"><Icons.BookOpen size={22} className="text-[#b7a159]"/> DIRECTORY DIRECTIVE</h3>
-            <p className="text-[12px] font-bold text-[#d7d7d7] uppercase tracking-widest mt-1.5">Workforce Profile Management</p>
-          </div>
-          <button onClick={onClose} className="p-2 text-white/50 hover:text-[#932c2e] hover:bg-white/10 rounded-xl transition-colors"><Icons.X size={24}/></button>
-        </div>
-        
-        <div className="flex-1 overflow-y-auto p-8 space-y-8 text-[#414757] text-[12px] leading-relaxed custom-scrollbar bg-white">
-          <section className="animate-fadeIn">
-            <h4 className="text-[14px] font-black text-[#212c46] mb-3 uppercase flex items-center gap-2 border-b-2 border-[#d7d7d7] pb-2 font-mono">
-              <Icons.ShieldAlert size={18} className="text-[#b7a159]"/> 1. ระบบประวัติและการบังคับใช้ PDPA
-            </h4>
-            <p className="text-[12px] mb-3">
-              ข้อมูลพนักงานทุกคนภายใต้โครงสร้างบริษัท **ชัยศรีอะโกรอินดัสเทรียล** ถือเป็นข้อมูลจำกัดสิทธิ์ขั้นสูง (Highly Confidential) ระบบนี้ทำหน้าที่เก็บข้อมูลรายบุคคลประกอบไปด้วย 4 มิติสำคัญ:
-            </p>
-            <ul className="list-disc pl-5 space-y-2 text-[12px]">
-                <li><strong className="text-[#4d87a8]">Basic Info (ประวัติทั่วไป):</strong> ชือไทย-อังกฤษ, บัตรประชาชน, อายุ, สัญชาติ และเพศสภาพ</li>
-                <li><strong className="text-[#b58c4f]">Work Detail (การทำงาน):</strong> วันเริ่มงาน, ตำแหน่งงาน, สังกัดหน่วย และข้อมูลบัญชีรับเงินเดือน</li>
-                <li><strong className="text-[#657f4d]">Contact Route (การติดต่อ):</strong> เบอร์โทรศัพท์, อีเมลทางการ และข้อมูลที่อยู่พำนักจริง</li>
-                <li><strong className="text-[#932c2e]">Health & Education (สุขภาพ/การศึกษา):</strong> ประวัติการศึกษา, ทหาร, โรคประจำตัว และญาติกรณีติดต่อฉุกเฉิน</li>
-            </ul>
-          </section>
-          
-          <section className="animate-fadeIn" style={{ animationDelay: '0.1s' }}>
-            <h4 className="text-[14px] font-black text-[#212c46] mb-3 uppercase flex items-center gap-2 border-b-2 border-[#d7d7d7] pb-2 font-mono">
-              <Icons.ClipboardList size={18} className="text-[#d96245]"/> 2. ระบบ Multi-step Wizard
-            </h4>
-            <p className="text-[12px] mb-3">การจัดเก็บ ป้อน และพูนข้อมูลพนักงานใหม่-เก่า จะใช้กระบวนการ 4 ขั้นตอนแบ่งแยกตามเมนูด้านซ้ายในหน้าต่างจัดการประวัติเพื่อลดความผิดพลาดในการป้อนข้อมูลเอกสารทางการ:</p>
-            <div className="grid grid-cols-2 gap-2 text-[11px] mt-2 font-semibold">
-                <div className="p-3 bg-slate-50 border border-[#eaeaec] rounded-xl text-[#212c46]">👥 Step 1: ประวัติเบื้องต้น</div>
-                <div className="p-3 bg-slate-50 border border-[#eaeaec] rounded-xl text-[#212c46]">💼 Step 2: ตำแหน่ง & สวัสดิการ</div>
-                <div className="p-3 bg-slate-50 border border-[#eaeaec] rounded-xl text-[#212c46]">📍 Step 3: ที่อยู่ติดต่อ</div>
-                <div className="p-3 bg-slate-50 border border-[#eaeaec] rounded-xl text-[#212c46]">🎓 Step 4: วุฒิ & ข้อมูลติดต่อฉุกเฉิน</div>
-            </div>
-          </section>
-
-          <section className="animate-fadeIn" style={{ animationDelay: '0.2s' }}>
-            <h4 className="text-[14px] font-black text-[#212c46] mb-3 uppercase flex items-center gap-2 border-b-2 border-[#d7d7d7] pb-2 font-mono">
-              <Icons.CheckSquare size={18} className="text-[#3f809e]"/> 3. สถิติพนักงานและหัวหน้างานประสานงาน
-            </h4>
-            <p className="text-[12px]">
-              แผงควบคุม KPI ประเมินสถิติรวม (Headcount), พนักงานที่มีสถานะ Active ถือครองตารางปัจจุบัน รวมถึงสามารถส่งออกข้อมูลประวัติครอบคลุมการตรวจสอบจากฝ่ายทรัพยากรบุคคลแบบบูรณาการ
-            </p>
-          </section>
-        </div>
-        
-        <div className="p-4 bg-[#f8f9fa] border-t border-[#eaeaec] flex justify-end shrink-0">
-          <button onClick={onClose} className="px-8 py-2.5 bg-[#212c46] text-white font-black rounded-xl uppercase text-[12px] hover:bg-[#414757] hover:text-white transition-all shadow-md tracking-[0.1em] cursor-pointer">รับทราบระเบียบ (Acknowledge)</button>
-        </div>
-      </div>
-    </>, document.body
-  );
-}
 
 function EmployeeModal({ isOpen, onClose, emp, onSave }: any) {
     const [modalStep, setModalStep] = useState(0);
@@ -693,42 +646,78 @@ export default function EmployeeDirectory() {
   const [modalState, setModalState] = useState<{ isOpen: boolean; user: any }>({ isOpen: false, user: null });
   const [toast, setToast] = useState<string | null>(null);
 
-  const [loading, setLoading] = useState(true);
+   const [loading, setLoading] = useState(true);
+   const [isSyncing, setIsSyncing] = useState(false);
+ 
+   // Load from dbSync (Firestore primary, GAS Sheet secondary, LocalStorage seed tertiary)
+   const fetchEmployees = async (force = false) => {
+     if (force) {
+       setIsSyncing(true);
+     } else {
+       setLoading(true);
+     }
+     try {
+       console.log(`[Directory] Loading employees from dbSync (force: ${force})...`);
+       const response = await dbSync.read('employees', force);
+       if (response && response.status === 'success' && response.data && Array.isArray(response.data.items)) {
+         let loaded = response.data.items;
+         if (loaded.length === 0) {
+           console.log("[Directory] Database empty. Seeding INITIAL_EMPLOYEES...");
+           await dbSync.write('employees', INITIAL_EMPLOYEES);
+           setUsers(INITIAL_EMPLOYEES);
+           localStorage.setItem('local_employee_directory', JSON.stringify(INITIAL_EMPLOYEES));
+         } else {
+           const items = loaded.map((u: any) => ({
+             ...u,
+             id: isNaN(u.id) ? u.id : Number(u.id),
+             staffId: u.staffId || u.employeeId || '-',
+             nameEn: u.nameEn || u.name || '-',
+             nameTh: u.nameTh || u.name || '-',
+             dept: u.dept || u.department || '-',
+             office: u.office || 'Headquarters',
+             jobTitle: u.jobTitle || u.position || '-',
+             jobStatus: u.jobStatus || 'Permanent',
+             workStatus: u.workStatus || u.status || 'Active',
+             image: u.image || u.avatar || '',
+             email: u.email || '',
+             phone: u.phone || ''
+           }));
+           setUsers(items);
+           localStorage.setItem('local_employee_directory', JSON.stringify(items));
+         }
+         
+         if (force) {
+           Swal.fire({
+             icon: 'success',
+             title: 'ซิงค์ข้อมูลสำเร็จ',
+             text: `ดึงข้อมูลพนักงานจริงจำนวน ${loaded.length} รายการจาก Google Sheets เรียบร้อยแล้ว!`,
+             confirmButtonColor: '#212c46'
+           });
+         }
+       } else {
+         if (!force) setUsers(INITIAL_EMPLOYEES);
+       }
+     } catch (err) {
+       console.error("Failed to load employees from dbSync:", err);
+       if (force) {
+         Swal.fire({
+           icon: 'error',
+           title: 'ซิงค์ขัดข้อง',
+           text: 'ไม่สามารถดึงข้อมูลพนักงานจากกูเกิลชีตได้ในขณะนี้ กรุณาลองใหม่อีกครั้ง',
+           confirmButtonColor: '#932c2e'
+         });
+       } else {
+         setUsers(INITIAL_EMPLOYEES);
+       }
+     } finally {
+       setLoading(false);
+       setIsSyncing(false);
+     }
+   };
 
-  // Load from dbSync (Firestore primary, GAS Sheet secondary, LocalStorage seed tertiary)
-  useEffect(() => {
-    const fetchEmployees = async () => {
-      setLoading(true);
-      try {
-        console.log("[Directory] Loading employees from dbSync...");
-        const response = await dbSync.read('employees');
-        if (response && response.status === 'success' && response.data && Array.isArray(response.data.items)) {
-          let loaded = response.data.items;
-          if (loaded.length === 0) {
-            console.log("[Directory] Database empty. Seeding INITIAL_EMPLOYEES...");
-            await dbSync.write('employees', INITIAL_EMPLOYEES);
-            setUsers(INITIAL_EMPLOYEES);
-            localStorage.setItem('local_employee_directory', JSON.stringify(INITIAL_EMPLOYEES));
-          } else {
-            const items = loaded.map((u: any) => ({
-              ...u,
-              id: isNaN(u.id) ? u.id : Number(u.id)
-            }));
-            setUsers(items);
-            localStorage.setItem('local_employee_directory', JSON.stringify(items));
-          }
-        } else {
-          setUsers(INITIAL_EMPLOYEES);
-        }
-      } catch (err) {
-        console.error("Failed to load employees from dbSync:", err);
-        setUsers(INITIAL_EMPLOYEES);
-      } finally {
-        setLoading(false);
-      }
-    };
-    fetchEmployees();
-  }, []);
+   useEffect(() => {
+     fetchEmployees(false);
+   }, []);
 
   const saveToStorage = (newRecords: any[]) => {
       setUsers(newRecords);
@@ -946,8 +935,17 @@ export default function EmployeeDirectory() {
 
           <div className="flex items-center gap-3 shrink-0">
               <button 
+                  onClick={() => fetchEmployees(true)}
+                  disabled={isSyncing}
+                  className={`flex items-center gap-2 bg-[#212c46] hover:bg-[#414757] text-white py-2.5 px-6 rounded-full text-[11px] uppercase font-black tracking-widest shadow-sm transition-all duration-300 cursor-pointer shrink-0 whitespace-nowrap ${isSyncing ? 'opacity-70 cursor-not-allowed scale-[0.98]' : 'hover:scale-[1.02]'}`}
+              >
+                  <RefreshCw size={14} className={`text-white shrink-0 ${isSyncing ? 'animate-spin' : ''}`} /> 
+                  {isSyncing ? 'Syncing...' : 'Sync Google Sheets'}
+              </button>
+              
+              <button 
                   onClick={handleExportData} 
-                  className="hidden lg:flex items-center gap-2 bg-white/80 border border-[#eaeaec] text-[#212c46] hover:bg-[#f8f9fa] py-2.5 px-6 rounded-full text-[11px] uppercase font-black tracking-widest shadow-sm transition-colors cursor-pointer shrink-0 whitespace-nowrap"
+                  className="hidden lg:flex items-center gap-2 bg-white/80 border border-[#eaeaec] text-[#212c46] hover:bg-[#f8f9fa] py-2.5 px-6 rounded-full text-[11px] uppercase font-black tracking-widest shadow-sm transition-all duration-300 hover:scale-[1.02] cursor-pointer shrink-0 whitespace-nowrap"
               >
                   <Download size={14} className="text-[#b58c4f]" /> {t('Export Profiles')}
               </button>

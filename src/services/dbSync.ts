@@ -54,52 +54,57 @@ export const dbSync = {
    * then caches the Google Sheets data in Firestore to speed up subsequent loads.
    * If both fail, it falls back to LocalStorage with robust Seed fallback data.
    */
-  async read(sheetName: string): Promise<any> {
+  async read(sheetName: string, forceRefresh = false): Promise<any> {
     const colName = getCollectionName(sheetName);
     
-    // 1. Try Firestore read
-    try {
-      console.log(`[dbSync] Attempting to read ${sheetName} from Firestore (${colName})...`);
-      const colRef = collection(db, colName);
-      
-      // Implement a 1200ms timeout for Firestore read to prevent long hangs
-      const timeoutPromise = new Promise<never>((_, reject) => 
-        setTimeout(() => reject(new Error("Firestore read timeout")), 1200)
-      );
-      
-      const snapshot = await Promise.race([
-        getDocs(colRef),
-        timeoutPromise
-      ]);
-      
-      if (!snapshot.empty) {
-        const items = snapshot.docs.map(doc => ({
-          ...doc.data(),
-          id: doc.id
-        }));
-        console.log(`[dbSync] Successfully read ${items.length} items from Firestore.`);
-        updateLastSyncTimestamp();
-        return { status: 'success', data: { items } };
-      }
-      
-      console.log(`[dbSync] Firestore collection ${colName} is empty. Falling back to Google Apps Script...`);
-    } catch (err) {
-      if (err instanceof Error && (err.message.includes('permission') || err.message.includes('Permission') || (err as any).code === 'permission-denied')) {
-        try {
-          handleFirestoreError(err, OperationType.LIST, colName);
-        } catch (jsonErr) {
-          console.error('[dbSync] Firestore permission error logged. Propagating fallback:', jsonErr);
+    // 1. Try Firestore read (unless forced refresh is active)
+    if (!forceRefresh) {
+      try {
+        console.log(`[dbSync] Attempting to read ${sheetName} from Firestore (${colName})...`);
+        const colRef = collection(db, colName);
+        
+        // Implement a 1200ms timeout for Firestore read to prevent long hangs
+        const timeoutPromise = new Promise<never>((_, reject) => 
+          setTimeout(() => reject(new Error("Firestore read timeout")), 1200)
+        );
+        
+        const snapshot = await Promise.race([
+          getDocs(colRef),
+          timeoutPromise
+        ]);
+        
+        if (!snapshot.empty) {
+          const items = snapshot.docs.map(doc => ({
+            ...doc.data(),
+            id: doc.id
+          }));
+          console.log(`[dbSync] Successfully read ${items.length} items from Firestore.`);
+          updateLastSyncTimestamp();
+          return { status: 'success', data: { items } };
         }
+        
+        console.log(`[dbSync] Firestore collection ${colName} is empty. Falling back to Google Apps Script...`);
+      } catch (err) {
+        if (err instanceof Error && (err.message.includes('permission') || err.message.includes('Permission') || (err as any).code === 'permission-denied')) {
+          try {
+            handleFirestoreError(err, OperationType.LIST, colName);
+          } catch (jsonErr) {
+            console.error('[dbSync] Firestore permission error logged. Propagating fallback:', jsonErr);
+          }
+        }
+        console.warn(`[dbSync] Firestore read failed or timed out. Falling back to Google Apps Script:`, err);
       }
-      console.warn(`[dbSync] Firestore read failed or timed out. Falling back to Google Apps Script:`, err);
+    } else {
+      console.log(`[dbSync] Force refresh requested for ${sheetName}. Direct Google Sheets call initiated...`);
     }
 
     // 2. Try Google Apps Script (GAS) read
     if (GAS_WEB_APP_URL && GAS_WEB_APP_URL !== "YOUR_GOOGLE_APPS_SCRIPT_WEB_APP_URL_HERE" && GAS_WEB_APP_URL.trim() !== "") {
       try {
-        // Implement a 1500ms timeout for GAS read
+        // Implement a longer timeout for forced refresh to ensure the sheet can compile
+        const timeoutMs = forceRefresh ? 12000 : 5000;
         const timeoutPromise = new Promise<never>((_, reject) => 
-          setTimeout(() => reject(new Error("GAS read timeout")), 1500)
+          setTimeout(() => reject(new Error("GAS read timeout")), timeoutMs)
         );
         
         const response = await Promise.race([
@@ -107,13 +112,17 @@ export const dbSync = {
           timeoutPromise
         ]);
         
-        // Safely sync Google Sheets data back into Firestore in the background for next loads
+        // Safely sync Google Sheets data back into Firestore
         if (response && response.status === 'success' && response.data && Array.isArray(response.data.items)) {
           const items = response.data.items;
-          console.log(`[dbSync] Syncing ${items.length} items from Google Sheets into Firestore in the background.`);
-          this.backgroundSyncToFirestore(sheetName, items).catch(err => {
-            console.error('[dbSync] Background sync to Firestore failed:', err);
-          });
+          console.log(`[dbSync] Syncing ${items.length} items from Google Sheets into Firestore...`);
+          if (forceRefresh) {
+            await this.backgroundSyncToFirestore(sheetName, items);
+          } else {
+            this.backgroundSyncToFirestore(sheetName, items).catch(err => {
+              console.warn('[dbSync] Background sync to Firestore failed (Safe Warning):', err);
+            });
+          }
         }
         
         return response;
@@ -592,17 +601,31 @@ export const dbSync = {
   },
 
   /**
-   * Background sync helper to seed Firestore when reading from Sheets
+   * Background sync helper to seed Firestore when reading from Sheets.
+   * Compares list to delete local/stale/mock Firestore items that do not exist in sheets
    */
   async backgroundSyncToFirestore(sheetName: string, items: any[]): Promise<void> {
     const colName = getCollectionName(sheetName);
+    
+    // Fetch all existing documents in this Firestore collection to find orphans / obsolete items
+    let existingIds: string[] = [];
+    try {
+      const colRef = collection(db, colName);
+      const snapshot = await getDocs(colRef);
+      existingIds = snapshot.docs.map(doc => doc.id);
+    } catch (err) {
+      console.warn(`[dbSync] Failed to fetch current Firestore docs in ${colName} for sync cleaning:`, err);
+    }
+
     const batch = writeBatch(db);
     
-    // Sync first 100 items to avoid batch size limits (Firestore writeBatch limits to 500 ops)
-    const limitedItems = items.slice(0, 450);
+    // Sync modern items (limit to first 400 to leave headroom for deletes in a 500-op batch)
+    const limitedItems = items.slice(0, 400);
+    const syncedIds = new Set<string>();
     
     for (const item of limitedItems) {
       const idStr = String(item.id || item.employeeId || 'synced_' + Math.random().toString(36).substring(2, 7));
+      syncedIds.add(idStr);
       const docRef = doc(db, colName, idStr);
       batch.set(docRef, {
         ...item,
@@ -612,8 +635,18 @@ export const dbSync = {
       }, { merge: true });
     }
     
+    // Find orphans present in Firestore but absent in Google Sheets
+    let deleteCount = 0;
+    for (const extId of existingIds) {
+      if (!syncedIds.has(extId)) {
+        const docRef = doc(db, colName, extId);
+        batch.delete(docRef);
+        deleteCount++;
+      }
+    }
+    
     await batch.commit();
-    console.log(`[dbSync] Background sync complete. ${limitedItems.length} items synced to Firestore.`);
+    console.log(`[dbSync] Background sync complete. ${limitedItems.length} items synced, ${deleteCount} stale/obsolete Firestore items cleared for ${colName}.`);
     updateLastSyncTimestamp();
   }
 };

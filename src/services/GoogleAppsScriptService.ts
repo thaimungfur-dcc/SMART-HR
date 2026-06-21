@@ -1,4 +1,4 @@
-export const GAS_WEB_APP_URL = import.meta.env.VITE_APPS_SCRIPT_URL || "YOUR_GOOGLE_APPS_SCRIPT_WEB_APP_URL_HERE";
+export const GAS_WEB_APP_URL = import.meta.env.VITE_APPS_SCRIPT_URL || "https://script.google.com/macros/s/AKfycbzKqCNRIPzEsElUeDdpVRqLUc30iwnl9-DdEa-zfV1d_BAUjcvNt12VUgHYMRWYF7R9_A/exec";
 export const GAS_API_KEY = import.meta.env.VITE_API_KEY || "your_secret_key_here";
 
 /**
@@ -27,6 +27,7 @@ export class GASService {
           "Content-Type": "text/plain;charset=utf-8", // text/plain is used to avoid CORS preflight issues with GAS
         },
         body: JSON.stringify(payload),
+        redirect: "follow"
       });
 
       const result = await response.json();
@@ -36,7 +37,7 @@ export class GASService {
       }
       return result;
     } catch (error) {
-      console.error(`GAS API Error [${action}]:`, error);
+      console.warn(`GAS API Warning [${action}] (Graceful Fallback Mode):`, error);
       throw error;
     }
   }
