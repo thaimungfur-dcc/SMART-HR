@@ -434,25 +434,30 @@ export const dbSync = {
       console.log(`[dbSync] GAS is unconfigured. Skipping write for ${sheetName}.`);
     }
 
-    // 2. Write to Firestore
+    // 2. Write to Firestore in chunks of 450 to avoid the 500 write limit
     try {
-      const batch = writeBatch(db);
-      
-      for (const item of data) {
-        const idStr = String(item.id || item.employeeId || 'log_' + Date.now() + '_' + Math.random().toString(36).substring(2, 7));
-        const docRef = doc(db, colName, idStr);
-        const cleanedItem = cleanForFirestore(item);
+      const chunkSize = 450;
+      for (let i = 0; i < data.length; i += chunkSize) {
+        const chunk = data.slice(i, i + chunkSize);
+        const batch = writeBatch(db);
         
-        batch.set(docRef, {
-          ...cleanedItem,
-          id: idStr,
-          createdAt: item.createdAt || new Date().toISOString(),
-          updatedAt: new Date().toISOString()
-        }, { merge: true });
+        for (const item of chunk) {
+          const idStr = String(item.id || item.employeeId || 'log_' + Date.now() + '_' + Math.random().toString(36).substring(2, 7));
+          const docRef = doc(db, colName, idStr);
+          const cleanedItem = cleanForFirestore(item);
+          
+          batch.set(docRef, {
+            ...cleanedItem,
+            id: idStr,
+            createdAt: item.createdAt || new Date().toISOString(),
+            updatedAt: new Date().toISOString()
+          }, { merge: true });
+        }
+        
+        await batch.commit();
+        console.log(`[dbSync] Firestore Write: Committed batch of ${chunk.length} items (${i + chunk.length}/${data.length}) to ${colName}`);
       }
-      
-      await batch.commit();
-      console.log(`[dbSync] Successfully wrote ${data.length} items to Firestore (${colName}).`);
+      console.log(`[dbSync] Successfully wrote all ${data.length} items to Firestore (${colName}).`);
       updateLastSyncTimestamp();
     } catch (err) {
       if (err instanceof Error && (err.message.includes('permission') || err.message.includes('Permission') || (err as any).code === 'permission-denied')) {
@@ -509,27 +514,32 @@ export const dbSync = {
       console.log(`[dbSync] GAS is unconfigured. Skipping update for ${sheetName}.`);
     }
 
-    // 2. Update in Firestore
+    // 2. Update to Firestore in chunks of 450 to avoid the 500 write limit
     try {
-      const batch = writeBatch(db);
-      
-      for (const item of data) {
-        if (!item.id) {
-          console.warn('[dbSync] Skip update for item missing "id" field:', item);
-          continue;
-        }
-        const idStr = String(item.id);
-        const docRef = doc(db, colName, idStr);
-        const cleanedItem = cleanForFirestore(item);
+      const chunkSize = 450;
+      for (let i = 0; i < data.length; i += chunkSize) {
+        const chunk = data.slice(i, i + chunkSize);
+        const batch = writeBatch(db);
         
-        batch.set(docRef, {
-          ...cleanedItem,
-          updatedAt: new Date().toISOString()
-        }, { merge: true });
+        for (const item of chunk) {
+          if (!item.id) {
+            console.warn('[dbSync] Skip update for item missing "id" field:', item);
+            continue;
+          }
+          const idStr = String(item.id);
+          const docRef = doc(db, colName, idStr);
+          const cleanedItem = cleanForFirestore(item);
+          
+          batch.set(docRef, {
+            ...cleanedItem,
+            updatedAt: new Date().toISOString()
+          }, { merge: true });
+        }
+        
+        await batch.commit();
+        console.log(`[dbSync] Firestore Update: Committed batch of ${chunk.length} items (${i + chunk.length}/${data.length}) to ${colName}`);
       }
-      
-      await batch.commit();
-      console.log(`[dbSync] Successfully updated ${data.length} items in Firestore (${colName}).`);
+      console.log(`[dbSync] Successfully updated all ${data.length} items in Firestore (${colName}).`);
       updateLastSyncTimestamp();
     } catch (err) {
       if (err instanceof Error && (err.message.includes('permission') || err.message.includes('Permission') || (err as any).code === 'permission-denied')) {
@@ -584,18 +594,23 @@ export const dbSync = {
       console.log(`[dbSync] GAS is unconfigured. Skipping delete for ${sheetName}.`);
     }
 
-    // 2. Delete from Firestore
+    // 2. Delete from Firestore in chunks of 450 to avoid the 500 write limit
     try {
-      const batch = writeBatch(db);
-      
-      for (const item of data) {
-        const idStr = String(item.id);
-        const docRef = doc(db, colName, idStr);
-        batch.delete(docRef);
+      const chunkSize = 450;
+      for (let i = 0; i < data.length; i += chunkSize) {
+        const chunk = data.slice(i, i + chunkSize);
+        const batch = writeBatch(db);
+        
+        for (const item of chunk) {
+          const idStr = String(item.id);
+          const docRef = doc(db, colName, idStr);
+          batch.delete(docRef);
+        }
+        
+        await batch.commit();
+        console.log(`[dbSync] Firestore Delete: Committed batch of ${chunk.length} items (${i + chunk.length}/${data.length}) to ${colName}`);
       }
-      
-      await batch.commit();
-      console.log(`[dbSync] Successfully deleted ${data.length} items from Firestore (${colName}).`);
+      console.log(`[dbSync] Successfully deleted all ${data.length} items from Firestore (${colName}).`);
       updateLastSyncTimestamp();
     } catch (err) {
       if (err instanceof Error && (err.message.includes('permission') || err.message.includes('Permission') || (err as any).code === 'permission-denied')) {
@@ -639,23 +654,24 @@ export const dbSync = {
       console.warn(`[dbSync] Failed to fetch current Firestore docs in ${colName} for sync cleaning:`, err);
     }
 
-    const batch = writeBatch(db);
-    
-    // Sync modern items (limit to first 400 to leave headroom for deletes in a 500-op batch)
-    const limitedItems = items.slice(0, 400);
     const syncedIds = new Set<string>();
-    
-    for (const item of limitedItems) {
+    const chunkOps: { type: 'set' | 'delete', ref: any, data?: any }[] = [];
+
+    for (const item of items) {
       const idStr = String(item.id || item.employeeId || 'synced_' + Math.random().toString(36).substring(2, 7));
       syncedIds.add(idStr);
       const docRef = doc(db, colName, idStr);
       const cleanedItem = cleanForFirestore(item);
-      batch.set(docRef, {
-        ...cleanedItem,
-        id: idStr,
-        createdAt: item.createdAt || new Date().toISOString(),
-        updatedAt: item.updatedAt || new Date().toISOString()
-      }, { merge: true });
+      chunkOps.push({
+        type: 'set',
+        ref: docRef,
+        data: {
+          ...cleanedItem,
+          id: idStr,
+          createdAt: item.createdAt || new Date().toISOString(),
+          updatedAt: item.updatedAt || new Date().toISOString()
+        }
+      });
     }
     
     // Find orphans present in Firestore but absent in Google Sheets
@@ -663,13 +679,32 @@ export const dbSync = {
     for (const extId of existingIds) {
       if (!syncedIds.has(extId)) {
         const docRef = doc(db, colName, extId);
-        batch.delete(docRef);
+        chunkOps.push({ type: 'delete', ref: docRef });
         deleteCount++;
       }
     }
-    
-    await batch.commit();
-    console.log(`[dbSync] Background sync complete. ${limitedItems.length} items synced, ${deleteCount} stale/obsolete Firestore items cleared for ${colName}.`);
-    updateLastSyncTimestamp();
+
+    // Now execute all chunkOps in batches of 450 to support unlimited data sizes without crashing
+    const chunkSize = 450;
+    try {
+      for (let i = 0; i < chunkOps.length; i += chunkSize) {
+        const chunk = chunkOps.slice(i, i + chunkSize);
+        const batch = writeBatch(db);
+        
+        for (const op of chunk) {
+          if (op.type === 'set') {
+            batch.set(op.ref, op.data, { merge: true });
+          } else {
+            batch.delete(op.ref);
+          }
+        }
+        await batch.commit();
+        console.log(`[dbSync] Background sync: Committed batch ${Math.floor(i / chunkSize) + 1}/${Math.ceil(chunkOps.length / chunkSize)} for ${colName}`);
+      }
+      console.log(`[dbSync] Background sync complete. ${items.length} items synced, ${deleteCount} stale/obsolete Firestore items cleared for ${colName}.`);
+      updateLastSyncTimestamp();
+    } catch (err) {
+      console.error(`[dbSync] Background sync split batches failed for ${sheetName}:`, err);
+    }
   }
 };

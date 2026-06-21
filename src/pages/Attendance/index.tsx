@@ -52,6 +52,7 @@ import Swal from 'sweetalert2';
 import withReactContent from 'sweetalert2-react-content';
 import { dataExportService } from '../../services/dataExportService';
 import { PrintPreviewModal } from '../../components/shared/PrintPreviewModal';
+import * as XLSX from 'xlsx';
 
 const MySwal = withReactContent(Swal);
 
@@ -140,6 +141,8 @@ export default function Attendance() {
   const [rawSearchDept, setRawSearchDept] = useState<string>('All');
   const [rawSearchStatus, setRawSearchStatus] = useState<string>('All');
   const [selectedRawLogIds, setSelectedRawLogIds] = useState<string[]>([]);
+  const [rawLogsPage, setRawLogsPage] = useState<number>(1);
+  const rawLogsPerPage = 50;
   const [isAttendancePrintOpen, setIsAttendancePrintOpen] = useState(false);
   const [isAttendanceLedgerOpen, setIsAttendanceLedgerOpen] = useState(false);
   const [isGuideOpen, setGuideOpen] = useState(false);
@@ -176,7 +179,7 @@ export default function Attendance() {
   const [filterOnlyWarnings, setFilterOnlyWarnings] = useState<boolean>(false);
 
   // Helper utility to parse scanner dates
-  const parseScannerDate = (dateStr: string): string => {
+  const parseScannerDate = (dateStr: string, forceMMDDYYYY?: boolean): string => {
     const cleaned = dateStr.replace(/\s/g, '');
     const parts = cleaned.split(/[-/.]/);
     if (parts.length === 3) {
@@ -197,7 +200,10 @@ export default function Attendance() {
       } else if (n3 > 1000) {
         // DD-MM-YYYY or MM-DD-YYYY
         year = n3;
-        if (n2 > 12) {
+        if (forceMMDDYYYY) {
+          month = n1;
+          day = n2;
+        } else if (n2 > 12) {
           // MM-DD-YYYY pattern (e.g. 01-19-2026)
           month = n1;
           day = n2;
@@ -579,28 +585,69 @@ export default function Attendance() {
     });
   }, [rawScannerLogs, rawSearchName, rawSearchDate, rawSearchDept, rawSearchStatus]);
 
+  const paginatedRawLogs = useMemo(() => {
+    const startIndex = (rawLogsPage - 1) * rawLogsPerPage;
+    return filteredRawLogs.slice(startIndex, startIndex + rawLogsPerPage);
+  }, [filteredRawLogs, rawLogsPage]);
+
+  useEffect(() => {
+    setRawLogsPage(1);
+  }, [rawSearchName, rawSearchDate, rawSearchDept, rawSearchStatus, activeSubTab]);
+
   const handleCsvFileUpload = (e: React.ChangeEvent<HTMLInputElement> | React.DragEvent<HTMLDivElement>) => {
-    e.preventDefault();
-    let file: File | null = null;
-    
-    if ('files' in e.target && e.target.files) {
-      file = e.target.files[0];
-    } else if ('dataTransfer' in e && e.dataTransfer.files) {
-      file = e.dataTransfer.files[0];
-    }
+    try {
+      e.preventDefault();
+      let file: File | null = null;
+      
+      if ('files' in e.target && e.target.files) {
+        file = e.target.files[0];
+      } else if ('dataTransfer' in e && e.dataTransfer.files) {
+        file = e.dataTransfer.files[0];
+      }
 
-    if (!file) return;
-    setCsvFile(file);
-    setIsParsing(true);
+      if (!file) return;
+      setCsvFile(file);
+      setIsParsing(true);
 
-    const reader = new FileReader();
-    reader.onload = async (event) => {
-      try {
-        const text = event.target?.result as string;
-        if (!text) throw new Error("Could not read file text content");
+      const isExcel = file.name.toLowerCase().endsWith('.xlsx') || file.name.toLowerCase().endsWith('.xls');
 
-        const lines = parseCSV(text);
-        if (lines.length < 2) {
+      const reader = new FileReader();
+      
+      reader.onerror = (err) => {
+        console.error("[FileReader] Error reading file:", err);
+        MySwal.fire({
+          icon: 'error',
+          title: 'ข้อผิดพลาดในการโหลดไฟล์',
+          text: 'ไม่สามารถอ่านไฟล์ได้ โปรดตรวจสอบว่าไฟล์ไม่ได้ถูกเปิดใช้งานอยู่และระบบสิทธิ์เข้าถึงครบถ้วน',
+          confirmButtonColor: '#212c46'
+        });
+        setIsParsing(false);
+        setCsvFile(null);
+      };
+
+      reader.onload = async (event) => {
+        try {
+          const data = event.target?.result;
+          if (!data) throw new Error("Could not read file content");
+
+          let lines: string[][] = [];
+          if (isExcel) {
+            const workbook = XLSX.read(data, { type: 'array' });
+            const firstSheetName = workbook.SheetNames[0];
+            const worksheet = workbook.Sheets[firstSheetName];
+            const rawLines = XLSX.utils.sheet_to_json<any[]>(worksheet, { header: 1, raw: false, defval: "" });
+            
+            lines = rawLines.map(row => 
+              Array.isArray(row) 
+                ? row.map(cell => (cell === undefined || cell === null) ? "" : String(cell).trim()) 
+                : []
+            );
+          } else {
+            const text = data as string;
+            lines = parseCSV(text);
+          }
+
+          if (lines.length < 2) {
           throw new Error("ไฟล์ไม่มีข้อมูล หรือมีข้อมูลไม่เพียงพอ (ต้องการหัวตารางและแถวข้อมูลอย่างน้อย 1 แถว)");
         }
 
@@ -679,6 +726,12 @@ export default function Attendance() {
 
         const timeRegex = /^([0-1]?[0-9]|2[0-3]):[0-5][0-9](:[0-5][0-9])?$/;
         const newParsedRows: any[] = [];
+        
+        const dateHeader = indices.date !== -1 ? (headers[indices.date] || '') : '';
+        const isMMDDYYYY = dateHeader.toLowerCase().includes('mm/dd') || 
+                           dateHeader.toLowerCase().includes('m/d/yyyy') || 
+                           dateHeader.toLowerCase().includes('mm-dd') || 
+                           dateHeader.toLowerCase().includes('m-d-yyyy');
 
         for (let r = headerRowIdx + 1; r < lines.length; r++) {
           const rowData = lines[r];
@@ -691,7 +744,7 @@ export default function Attendance() {
 
           if (!rawName && !rawAcNo) continue;
 
-          const formattedDate = parseScannerDate(rawDate);
+          const formattedDate = parseScannerDate(rawDate, isMMDDYYYY);
           
           let valMorningIn = '';
           let valMorningOut = '';
@@ -866,7 +919,22 @@ export default function Attendance() {
       }
     };
 
-    reader.readAsText(file);
+    if (isExcel) {
+      reader.readAsArrayBuffer(file);
+    } else {
+      reader.readAsText(file);
+    }
+    } catch (e: any) {
+      console.error(e);
+      MySwal.fire({
+        icon: 'error',
+        title: 'เกิดข้อผิดพลาดไม่คาดคิด',
+        text: e.message || 'โปรดลองใหม่อีกครั้ง',
+        confirmButtonColor: '#212c46'
+      });
+      setIsParsing(false);
+      setCsvFile(null);
+    }
   };
 
   // Trigger perform actual DB import write
@@ -2465,14 +2533,14 @@ export default function Attendance() {
                     <th className="p-3.5 pl-5 text-center w-12">
                       <input
                         type="checkbox"
-                        checked={filteredRawLogs.length > 0 && filteredRawLogs.every(x => selectedRawLogIds.includes(x.id))}
+                        checked={paginatedRawLogs.length > 0 && paginatedRawLogs.every(x => selectedRawLogIds.includes(x.id))}
                         onChange={(e) => {
                           if (e.target.checked) {
-                            const union = Array.from(new Set([...selectedRawLogIds, ...filteredRawLogs.map(x => x.id)]));
+                            const union = Array.from(new Set([...selectedRawLogIds, ...paginatedRawLogs.map(x => x.id)]));
                             setSelectedRawLogIds(union);
                           } else {
-                            const filteredIds = filteredRawLogs.map(x => x.id);
-                            setSelectedRawLogIds(prev => prev.filter(id => !filteredIds.includes(id)));
+                            const paginatedIds = paginatedRawLogs.map(x => x.id);
+                            setSelectedRawLogIds(prev => prev.filter(id => !paginatedIds.includes(id)));
                           }
                         }}
                         className="rounded border-slate-300 text-[#b58c4f] focus:ring-[#b58c4f]"
@@ -2488,7 +2556,7 @@ export default function Attendance() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100 divide-y-stretch">
-                  {filteredRawLogs.length === 0 ? (
+                  {paginatedRawLogs.length === 0 ? (
                     <tr>
                       <td colSpan={8} className="p-12 text-center text-slate-400 font-sans">
                         <div className="max-w-md mx-auto space-y-2 flex flex-col items-center">
@@ -2501,7 +2569,7 @@ export default function Attendance() {
                       </td>
                     </tr>
                   ) : (
-                    filteredRawLogs.map((log) => {
+                    paginatedRawLogs.map((log) => {
                       const isSelected = selectedRawLogIds.includes(log.id);
                       return (
                         <tr 
@@ -2726,6 +2794,38 @@ export default function Attendance() {
                   )}
                 </tbody>
               </table>
+
+              {/* Pagination Controls */}
+              {filteredRawLogs.length > 0 && (
+                <div className="bg-slate-50 px-5 py-3.5 border-t border-slate-250 flex flex-col sm:flex-row items-center justify-between gap-4 font-sans text-xs">
+                  <div className="text-slate-500 font-medium">
+                    แสดงรายการ <span className="font-semibold text-slate-700">{(rawLogsPage - 1) * rawLogsPerPage + 1}</span> ถึง{" "}
+                    <span className="font-semibold text-slate-700">
+                      {Math.min(rawLogsPage * rawLogsPerPage, filteredRawLogs.length)}
+                    </span>{" "}
+                    จากทั้งหมด <span className="font-semibold text-slate-700">{filteredRawLogs.length}</span> รายการ
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => setRawLogsPage(prev => Math.max(1, prev - 1))}
+                      disabled={rawLogsPage === 1}
+                      className="p-1.5 rounded-lg border border-slate-200 bg-white text-slate-600 hover:bg-slate-50 disabled:opacity-50 disabled:hover:bg-white transition-all cursor-pointer flex items-center justify-center"
+                    >
+                      <ChevronLeft size={16} />
+                    </button>
+                    <span className="text-slate-600 font-medium">
+                      หน้า <span className="font-semibold text-indigo-600">{rawLogsPage}</span> / {Math.ceil(filteredRawLogs.length / rawLogsPerPage)}
+                    </span>
+                    <button
+                      onClick={() => setRawLogsPage(prev => Math.min(Math.ceil(filteredRawLogs.length / rawLogsPerPage), prev + 1))}
+                      disabled={rawLogsPage >= Math.ceil(filteredRawLogs.length / rawLogsPerPage)}
+                      className="p-1.5 rounded-lg border border-slate-200 bg-white text-slate-800 hover:bg-slate-50 disabled:opacity-50 disabled:hover:bg-white transition-all cursor-pointer flex items-center justify-center"
+                    >
+                      <ChevronRight size={16} />
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         </div>
@@ -3027,7 +3127,7 @@ export default function Attendance() {
                 >
                   <input 
                     type="file" 
-                    accept=".csv" 
+                    accept=".csv, .xlsx, .xls" 
                     onChange={handleCsvFileUpload}
                     className="absolute inset-0 opacity-0 cursor-pointer w-full h-full"
                   />
@@ -3039,7 +3139,7 @@ export default function Attendance() {
                     )}
                   </div>
                   <h4 className="font-extrabold uppercase text-[11px] text-slate-700 tracking-wider mb-1">
-                    {isParsing ? 'กำลังวิเคราะห์ไฟล์ (Parsing CSV File)...' : 'ลากไฟล์ CSV มาวางที่นี่ หรือคลิกเพื่อเลือกไฟล์'}
+                    {isParsing ? 'กำลังวิเคราะห์ไฟล์ (Parsing File)...' : 'ลากไฟล์ CSV หรือ Excel (.xlsx / .xls) มาวางที่นี่ หรือคลิกเพื่อเลือกไฟล์'}
                   </h4>
                   <p className="text-[9px] text-slate-400 tracking-widest uppercase">
                     และดึงข้อมูลสรุปเข้าสู่แบบร่างของพนักงานโรงงาน
