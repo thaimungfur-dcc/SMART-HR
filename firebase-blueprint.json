@@ -1,0 +1,507 @@
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "User account information and permissions",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "employeeId": { "type": "string" },
+        "name": { "type": "string" },
+        "role": { "type": "string" },
+        "avatar": { "type": "string" },
+        "permissions": {
+          "type": "object",
+          "properties": {
+            "canCreate": { "type": "boolean" },
+            "canEdit": { "type": "boolean" },
+            "canApprove": { "type": "boolean" },
+            "canVerify": { "type": "boolean" }
+          },
+          "required": ["canCreate", "canEdit", "canApprove", "canVerify"]
+        },
+        "email": { "type": "string" },
+        "status": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "employeeId", "name", "role", "permissions"]
+    },
+    "CalendarEvent": {
+      "title": "CalendarEvent",
+      "description": "Calendar events for scheduling operations and tasks",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "date": { "type": "string" },
+        "title": { "type": "string" },
+        "time": { "type": "string" },
+        "type": { "type": "string" },
+        "priority": { "type": "string" },
+        "status": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "date", "title", "status"]
+    },
+    "SystemLog": {
+      "title": "SystemLog",
+      "description": "Tracking logs for administrative and system operations",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "userId": { "type": "string" },
+        "action": { "type": "string" },
+        "details": { "type": "string" },
+        "ipAddress": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "userId", "action", "createdAt"]
+    },
+    "SystemConfig": {
+      "title": "SystemConfig",
+      "description": "System configuration parameters",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "category": { "type": "string" },
+        "key": { "type": "string" },
+        "value": { "type": "string" },
+        "description": { "type": "string" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "category", "key", "value"]
+    },
+    "Employee": {
+      "title": "Employee",
+      "description": "Employee profiles and directory information",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "employeeId": { "type": "string" },
+        "name": { "type": "string" },
+        "department": { "type": "string" },
+        "position": { "type": "string" },
+        "email": { "type": "string" },
+        "avatar": { "type": "string" },
+        "birthDate": { "type": "string" },
+        "hireDate": { "type": "string" },
+        "status": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "employeeId", "name", "department"]
+    },
+    "LeaveRequest": {
+      "title": "LeaveRequest",
+      "description": "Employee leave requests and approvals",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "employeeName": { "type": "string" },
+        "type": { "type": "string" },
+        "start": { "type": "string" },
+        "end": { "type": "string" },
+        "days": { "type": "number" },
+        "status": { "type": "string" },
+        "department": { "type": "string" },
+        "reason": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "employeeName", "type", "start", "end", "status"]
+    },
+    "Appraisal": {
+      "title": "Appraisal",
+      "description": "Employee performance evaluation appraisals",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "employeeName": { "type": "string" },
+        "department": { "type": "string" },
+        "position": { "type": "string" },
+        "period": { "type": "string" },
+        "status": { "type": "string" },
+        "score": { "type": "number" },
+        "grade": { "type": "string" },
+        "selfScore": { "type": "number" },
+        "supervisorComments": { "type": "string" },
+        "date": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "employeeName", "department", "status"]
+    },
+    "Attendance": {
+      "title": "Attendance",
+      "description": "Daily employee attendance logs",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "employeeId": { "type": "string" },
+        "date": { "type": "string" },
+        "checkIn": { "type": "string" },
+        "checkOut": { "type": "string" },
+        "status": { "type": "string" },
+        "hours": { "type": "number" },
+        "shift": { "type": "string" },
+        "mode": { "type": "string" },
+        "remarks": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "employeeId", "date", "status"]
+    },
+    "WeeklyShift": {
+      "title": "WeeklyShift",
+      "description": "Weekly assigned employee shifts",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "employeeId": { "type": "string" },
+        "date": { "type": "string" },
+        "shiftId": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "employeeId", "date", "shiftId"]
+    },
+    "RawScannerLog": {
+      "title": "RawScannerLog",
+      "description": "Raw, unmodified fingerprint scanner logs as imported from CSV",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "acNo": { "type": "string" },
+        "name": { "type": "string" },
+        "dept": { "type": "string" },
+        "date": { "type": "string" },
+        "morningIn": { "type": "string" },
+        "morningOut": { "type": "string" },
+        "afternoonIn": { "type": "string" },
+        "afternoonOut": { "type": "string" },
+        "otIn": { "type": "string" },
+        "otOut": { "type": "string" },
+        "checkIn": { "type": "string" },
+        "checkOut": { "type": "string" },
+        "hours": { "type": "number" },
+        "status": { "type": "string" },
+        "remarks": { "type": "string" },
+        "matchedEmployeeId": { "type": "string" },
+        "matchedEmployeeName": { "type": "string" },
+        "isMatched": { "type": "boolean" },
+        "isProcessed": { "type": "boolean" },
+        "processedAt": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "acNo", "name", "date"]
+    },
+    "CompanyHoliday": {
+      "title": "CompanyHoliday",
+      "description": "Standardized or custom corporate and public holidays",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "date": { "type": "string" },
+        "titleTh": { "type": "string" },
+        "titleEn": { "type": "string" },
+        "type": { "type": "string" },
+        "description": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "date", "titleTh", "titleEn", "type"]
+    },
+    "CorporateNews": {
+      "title": "CorporateNews",
+      "description": "Company announcements and news stories",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "category": { "type": "string" },
+        "title": { "type": "string" },
+        "date": { "type": "string" },
+        "preview": { "type": "string" },
+        "fullText": { "type": "string" },
+        "author": { "type": "string" },
+        "image": { "type": "string" }
+      },
+      "required": ["title", "preview"]
+    },
+    "CorporateAlert": {
+      "title": "CorporateAlert",
+      "description": "High-priority alerts for corporate announcements",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "title": { "type": "string" },
+        "desc": { "type": "string" },
+        "icon": { "type": "string" },
+        "color": { "type": "string" },
+        "bg": { "type": "string" },
+        "theme": { "type": "string" }
+      },
+      "required": ["title", "desc"]
+    },
+    "Candidate": {
+      "title": "Candidate",
+      "description": "Job applicants in recruitment pipeline",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "email": { "type": "string" },
+        "position": { "type": "string" },
+        "department": { "type": "string" },
+        "stage": { "type": "string" },
+        "dateApplied": { "type": "string" },
+        "joinDate": { "type": "string" },
+        "salaryExpectation": { "type": "string" },
+        "img": { "type": "string" },
+        "rating": { "type": "number" },
+        "notes": { "type": "string" }
+      },
+      "required": ["id", "name", "email", "position"]
+    },
+    "ManpowerRequest": {
+      "title": "ManpowerRequest",
+      "description": "Department requests for new headcount resources",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "position": { "type": "string" },
+        "department": { "type": "string" },
+        "requestedBy": { "type": "string" },
+        "status": { "type": "string" },
+        "count": { "type": "number" },
+        "priority": { "type": "string" },
+        "targetDate": { "type": "string" }
+      },
+      "required": ["id", "position", "department"]
+    },
+    "JobOpening": {
+      "title": "JobOpening",
+      "description": "Active external or internal hiring positions",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "title": { "type": "string" },
+        "department": { "type": "string" },
+        "salaryRange": { "type": "string" },
+        "status": { "type": "string" },
+        "applicantsCount": { "type": "number" },
+        "description": { "type": "string" }
+      },
+      "required": ["id", "title", "department"]
+    },
+    "InterviewFeedback": {
+      "title": "InterviewFeedback",
+      "description": "Detailed candidate interview evaluation assessments and score matrix",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "ticketId": { "type": "string" },
+        "candidate": { "type": "string" },
+        "jobTitle": { "type": "string" },
+        "dept": { "type": "string" },
+        "interviewer": { "type": "string" },
+        "date": { "type": "string" },
+        "scores": {
+          "type": "object",
+          "properties": {
+            "skills": { "type": "number" },
+            "culture": { "type": "number" },
+            "attitude": { "type": "number" },
+            "potential": { "type": "number" }
+          },
+          "required": ["skills", "culture", "attitude", "potential"]
+        },
+        "result": { "type": "string" },
+        "comments": { "type": "string" }
+      },
+      "required": ["id", "ticketId", "candidate", "jobTitle", "dept", "interviewer", "date", "scores", "result", "comments"]
+    },
+    "InterviewSchedule": {
+      "title": "InterviewSchedule",
+      "description": "Scheduled hiring interview dates and times for candidates",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "ticketId": { "type": "string" },
+        "candidate": { "type": "string" },
+        "jobTitle": { "type": "string" },
+        "date": { "type": "string" },
+        "time": { "type": "string" },
+        "interviewers": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "mode": { "type": "string" },
+        "location": { "type": "string" },
+        "status": { "type": "string" },
+        "notes": { "type": "string" }
+      },
+      "required": ["id", "ticketId", "candidate", "jobTitle", "date", "time", "interviewers", "mode", "location", "status"]
+    },
+    "JobDescription": {
+      "title": "JobDescription",
+      "description": "Job Description (JD) Repository schema",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "jdCode": { "type": "string" },
+        "title": { "type": "string" },
+        "dept": { "type": "string" },
+        "level": { "type": "string" },
+        "status": { "type": "string" },
+        "updatedBy": { "type": "string" },
+        "lastUpdate": { "type": "string" },
+        "purpose": { "type": "string" },
+        "responsibilities": { "type": "string" },
+        "requirements": { "type": "string" }
+      },
+      "required": ["id", "jdCode", "title", "dept", "level", "status", "lastUpdate"]
+    },
+    "SkillMatrix": {
+      "title": "SkillMatrix",
+      "description": "Skill assessment matrix for corporate employees",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "empId": { "type": "string" },
+        "nameEn": { "type": "string" },
+        "dept": { "type": "string" },
+        "jobTitle": { "type": "string" },
+        "image": { "type": "string" },
+        "skills": { "type": "object" },
+        "avgScore": { "type": "number" },
+        "readiness": { "type": "string" }
+      },
+      "required": ["id", "empId", "nameEn", "avgScore", "readiness"]
+    },
+    "CareerPath": {
+      "title": "CareerPath",
+      "description": "Progression pathways for employee career elevation",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "code": { "type": "string" },
+        "titleTh": { "type": "string" },
+        "titleEn": { "type": "string" },
+        "dept": { "type": "string" },
+        "steps": { "type": "array", "items": { "type": "string" } },
+        "minYears": { "type": "number" },
+        "status": { "type": "string" },
+        "updatedBy": { "type": "string" }
+      },
+      "required": ["id", "code", "titleTh", "titleEn", "minYears", "status"]
+    },
+    "SuccessionPlan": {
+      "title": "SuccessionPlan",
+      "description": "Strategic succession planning and pipelines",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "posId": { "type": "string" },
+        "jobTitle": { "type": "string" },
+        "dept": { "type": "string" },
+        "incumbent": { "type": "object" },
+        "successors": { "type": "array", "items": { "type": "object" } },
+        "status": { "type": "string" },
+        "priority": { "type": "string" }
+      },
+      "required": ["id", "posId", "jobTitle", "dept", "incumbent", "successors", "status", "priority"]
+    }
+  },
+  "firestore": {
+    "users": {
+      "schema": "User",
+      "description": "Collection of users and administrators"
+    },
+    "calendar_events": {
+      "schema": "CalendarEvent",
+      "description": "Collection of calendar events"
+    },
+    "system_logs": {
+      "schema": "SystemLog",
+      "description": "Collection of system access and operational logs"
+    },
+    "system_config": {
+      "schema": "SystemConfig",
+      "description": "Collection of configuration values"
+    },
+    "employees": {
+      "schema": "Employee",
+      "description": "Collection of employees"
+    },
+    "leave_requests": {
+      "schema": "LeaveRequest",
+      "description": "Collection of employee leave requests"
+    },
+    "appraisals": {
+      "schema": "Appraisal",
+      "description": "Collection of employee appraisals"
+    },
+    "Attendance": {
+      "schema": "Attendance",
+      "description": "Collection of employee daily attendance logs"
+    },
+    "WeeklyShifts": {
+      "schema": "WeeklyShift",
+      "description": "Collection of weekly assigned employee shifts"
+    },
+    "RawScannerLogs": {
+      "schema": "RawScannerLog",
+      "description": "Collection of raw, imported fingerprint scanner logs"
+    },
+    "company_holidays": {
+      "schema": "CompanyHoliday",
+      "description": "Collection of company-observed holidays and events"
+    },
+    "CorporateNews": {
+      "schema": "CorporateNews",
+      "description": "Corporate news and announcements"
+    },
+    "CorporateAlerts": {
+      "schema": "CorporateAlert",
+      "description": "Corporate critical system alerts"
+    },
+    "candidates": {
+      "schema": "Candidate",
+      "description": "Recruitment pipeline candidates"
+    },
+    "manpower_requests": {
+      "schema": "ManpowerRequest",
+      "description": "Pending and approved headcount requests"
+    },
+    "job_openings": {
+      "schema": "JobOpening",
+      "description": "Published corporate job openings"
+    },
+    "interview_feedbacks": {
+      "schema": "InterviewFeedback",
+      "description": "Evaluated candidate interview feedbacks and scores"
+    },
+    "interview_schedules": {
+      "schema": "InterviewSchedule",
+      "description": "Scheduled hiring interview sessions"
+    },
+    "jd_repository": {
+      "schema": "JobDescription",
+      "description": "Centralized JDs and core competencies"
+    },
+    "skill_matrix": {
+      "schema": "SkillMatrix",
+      "description": "Employee skill matrix tracking and level mapping"
+    },
+    "career_paths": {
+      "schema": "CareerPath",
+      "description": "Staggered career pathway pipelines and milestones"
+    },
+    "succession_plans": {
+      "schema": "SuccessionPlan",
+      "description": "Strategic position pipelines and milestone planning"
+    }
+  }
+}

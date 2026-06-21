@@ -1,0 +1,520 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600;700;800&family=Noto+Sans+Thai:wght@300;400;500;600;700;800;900&display=swap');
+@import "./styles/fonts.css";
+@import "./styles/spacing.css";
+
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "JetBrains Mono", "Noto Sans Thai", "Inter", sans-serif;
+  --font-mono: "JetBrains Mono", monospace;
+  --font-technical: "JetBrains Mono", "Noto Sans Thai", sans-serif;
+}
+
+/* Force default fonts on the entire system except for the explicitly defined exceptions */
+html, body, button, input, select, textarea, div, p, span, h1, h2, h3, h4, h5, h6, a, table, th, td, blockquote, pre, code {
+  font-family: 'JetBrains Mono', 'Noto Sans Thai', 'Inter', sans-serif;
+}
+
+/* Exceptions: Preserve elegant sans-serif Inter/Noto Sans Thai style for:
+   - System Name: .font-exception-system
+   - Topbar Header: .font-exception-header
+   - Welcome Greeting: .font-exception-greeting
+   - Hero Banner: .font-exception-hero
+*/
+.font-exception-system,
+.font-exception-system *,
+.font-exception-header,
+.font-exception-header *,
+.font-exception-greeting,
+.font-exception-greeting *,
+.font-exception-hero,
+.font-exception-hero * {
+  font-family: 'Inter', 'Noto Sans Thai', sans-serif !important;
+}
+
+/* Sidebar Menu: Force JetBrains Mono for English/Numbers (technical style) */
+.font-technical,
+.font-technical *,
+.sidebar-scrollbar,
+.sidebar-scrollbar * {
+  font-family: 'JetBrains Mono', 'Noto Sans Thai', sans-serif !important;
+}
+
+/* Re-apply exception override on children of font-technical if they also belong to the system name */
+.font-technical .font-exception-system,
+.font-technical .font-exception-system * {
+  font-family: 'Inter', 'Noto Sans Thai', sans-serif !important;
+}
+
+/* Custom elegant scrollbars for Webkit browsers (Chrome, Safari, Edge, Opera) */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(33, 44, 70, 0.15);
+  border-radius: 9999px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(33, 44, 70, 0.3);
+}
+
+/* Elegant thin scrollbar for the sidebar navigation flow */
+.sidebar-scrollbar::-webkit-scrollbar {
+  width: 4px;
+}
+
+.sidebar-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.sidebar-scrollbar::-webkit-scrollbar-thumb {
+  background: rgba(181, 140, 79, 0.2); /* Soft bronze/gold matching the theme */
+  border-radius: 9999px;
+  transition: background-color 0.2s ease;
+}
+
+.sidebar-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: rgba(181, 140, 79, 0.5);
+}
+
+/* Elegant thin scrollbar for main dashboard panels and modals */
+.custom-scrollbar::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background: rgba(33, 44, 70, 0.15); /* Soft slate */
+  border-radius: 9999px;
+  transition: background-color 0.2s ease;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: rgba(33, 44, 70, 0.35);
+}
+
+/* Styling for Firefox */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(33, 44, 70, 0.15) transparent;
+}
+
+/* Override scrollbar-color specifically in dark containers like sidebar for Firefox */
+.sidebar-scrollbar {
+  scrollbar-color: rgba(181, 140, 79, 0.2) transparent;
+}
+
+/* ==========================================
+   PRINTER-FRIENDLY STYLESHEET (PDF & PAPER)
+   ========================================== */
+
+/* Screen defaults (non-print) */
+.print-layout-table,
+.print-layout-table > tbody,
+.print-layout-table > tbody > tr,
+.print-layout-table > tbody > tr > td,
+.print-layout-content {
+  display: flex !important;
+  flex-direction: column !important;
+  width: 100% !important;
+  align-self: stretch !important;
+  flex: 1 1 auto !important;
+}
+.print-layout-thead,
+.print-layout-tfoot,
+.print-layout-header,
+.print-layout-footer {
+  display: none !important;
+}
+
+@media print {
+  /* 1. Hide UI elements that shouldn't appear on paper */
+  aside,
+  header,
+  footer,
+  iframe,
+  .no-print,
+  button,
+  a[href^="javascript:"],
+  .sweet-alert,
+  .swal2-container,
+  #attendance-section-subtabs,
+  div[id*="-subtabs"],
+  button[class*="cursor-pointer"],
+  div[class*="cursor-pointer"],
+  .shrink-0 img,
+  span[class*="bg-[#b58c4f]"],
+  div[id="shift-pool-container"] {
+    display: none !important;
+  }
+
+  /* 2. Reset Layout to avoid height truncation & page cutting */
+  html, 
+  body, 
+  #root,
+  .h-screen, 
+  div[class*="h-screen"],
+  div[class*="overflow-hidden"],
+  div[class*="overflow-y-auto"],
+  .custom-scrollbar {
+    height: auto !important;
+    min-height: auto !important;
+    overflow: visible !important;
+    position: relative !important;
+    max-height: none !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    background: #ffffff !important;
+    color: #000000 !important;
+  }
+
+  /* Restore continuous counter context */
+  body {
+    counter-reset: page;
+  }
+
+  /* Ensure deep sub-elements and main expand cleanly */
+  main,
+  div[class*="flex-1"], 
+  div[class*="flex-col"],
+  div[class*="w-full"] {
+    display: block !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    box-shadow: none !important;
+    border: none !important;
+    overflow: visible !important;
+  }
+
+  /* 3. Render printable elements clearly */
+  .print-only {
+    display: block !important;
+  }
+
+  /* 4. Table Formatting Optimization */
+  table {
+    page-break-inside: auto;
+    width: 100% !important;
+    border-collapse: collapse !important;
+    background-color: white !important;
+    color: black !important;
+  }
+  
+  tr {
+    page-break-inside: avoid;
+    page-break-after: auto;
+  }
+
+  thead {
+    display: table-header-group !important;
+  }
+  
+  th, td {
+    color: #000000 !important;
+    border: 1px solid #777777 !important;
+    background-color: transparent !important;
+    padding: 6px 10px !important;
+    font-size: 10px !important;
+  }
+
+  /* Disable table borders for our print layout parent table structure strictly */
+  table.print-layout-table,
+  table.print-layout-table > thead,
+  table.print-layout-table > tbody,
+  table.print-layout-table > tfoot,
+  table.print-layout-table > thead > tr > td,
+  table.print-layout-table > tbody > tr > td,
+  table.print-layout-table > tfoot > tr > td {
+    border: none !important;
+    background: transparent !important;
+    background-color: transparent !important;
+    padding: 0 !important;
+    margin: 0 !important;
+  }
+
+  /* Setup dimensions and rules of the automatic page margins spacers */
+  .print-layout-table {
+    display: table !important;
+    width: 100% !important;
+    page-break-inside: auto !important;
+    break-inside: auto !important;
+  }
+  .print-layout-table > tbody > tr {
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
+    page-break-after: auto !important;
+    break-after: auto !important;
+  }
+  .print-layout-thead {
+    display: table-header-group !important;
+  }
+  .print-layout-tfoot {
+    display: table-footer-group !important;
+  }
+  .print-layout-header-space {
+    height: 195px !important;
+    display: block !important;
+  }
+  .print-layout-footer-space {
+    height: 45px !important;
+    display: block !important;
+  }
+  
+  .print-layout-header {
+    display: flex !important;
+    position: fixed !important;
+    top: 0 !important;
+    left: 0 !important;
+    width: 100% !important;
+    height: 185px !important;
+    background-color: #ffffff !important;
+    z-index: 9999 !important;
+    border-bottom: 3px double #0f172a !important;
+  }
+
+  .print-layout-footer {
+    display: flex !important;
+    position: fixed !important;
+    bottom: 0 !important;
+    left: 0 !important;
+    width: 100% !important;
+    height: 35px !important;
+    background-color: #ffffff !important;
+    z-index: 9999 !important;
+    border-top: 1px solid #cbd5e1 !important;
+    box-sizing: border-box !important;
+    padding-right: 15px !important;
+  }
+
+  .print-footer-page-number {
+    position: absolute !important;
+    right: 15px !important;
+    bottom: 10px !important;
+    background-color: #ffffff !important;
+    padding-left: 5px !important;
+    font-size: 8px !important;
+    font-weight: bold !important;
+    color: #475569 !important;
+    display: flex !important;
+    align-items: center !important;
+  }
+
+  .print-footer-page-number::after {
+    counter-increment: page;
+    content: counter(page);
+  }
+
+  /* Prevent split text & lists */
+  p, h1, h2, h3, h4, h5, h6, span {
+    page-break-inside: avoid;
+    color: #000000 !important;
+  }
+
+  /* Charts & Visualizers print tuning */
+  .recharts-responsive-container,
+  .recharts-wrapper {
+    width: 100% !important;
+    height: 380px !important;
+    page-break-inside: avoid;
+  }
+
+  /* General elements print styling adjustments */
+  div[class*="bg-white"],
+  div[class*="bg-slate-"],
+  div[class*="bg-teal-"],
+  div[class*="bg-amber-"],
+  div[class*="bg-indigo-"] {
+    background-color: transparent !important;
+    color: #000000 !important;
+    box-shadow: none !important;
+    border-color: #cccccc !important;
+  }
+
+  /* Preserve basic color indications for rosters and lates, using border accents */
+  div[class*="border-teal-"] {
+    border: 2px solid #0d9488 !important;
+  }
+  div[class*="border-amber-"] {
+    border: 2px solid #d97706 !important;
+  }
+  div[class*="border-rose-"] {
+    border: 2px solid #e11d48 !important;
+  }
+  div[class*="border-emerald-"] {
+    border: 2px solid #16a34a !important;
+  }
+  div[class*="border-indigo-"] {
+    border: 2px solid #4f46e5 !important;
+  }
+
+  /* Ensure status badges (Late, Present, Leave, Absence) are fully visible & identifiable in print */
+  .bg-emerald-50, [class*="bg-emerald-50"], span[class*="text-emerald-500"], span[class*="text-emerald-600"] {
+    background-color: #d1fae5 !important;
+    color: #065f46 !important;
+    border: 2px solid #047857 !important;
+    border-radius: 8px !important;
+    padding: 3px 10px !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+    display: inline-block !important;
+    font-weight: 900 !important;
+  }
+
+  .bg-amber-50, .bg-orange-50, [class*="bg-amber-50"], [class*="bg-orange-50"], span[class*="text-amber-500"], span[class*="text-orange-600"] {
+    background-color: #fef3c7 !important;
+    color: #92400e !important;
+    border: 2px solid #b45309 !important;
+    border-radius: 8px !important;
+    padding: 3px 10px !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+    display: inline-block !important;
+    font-weight: 900 !important;
+  }
+
+  .bg-rose-50, .bg-red-50, [class*="bg-rose-50"], [class*="bg-red-50"], span[class*="text-rose-500"], span[class*="text-[#932c2e]"] {
+    background-color: #ffe4e6 !important;
+    color: #9f1239 !important;
+    border: 2px solid #be123c !important;
+    border-radius: 8px !important;
+    padding: 3px 10px !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+    display: inline-block !important;
+    font-weight: 900 !important;
+  }
+
+  .bg-sky-50, .bg-indigo-50, [class*="bg-sky-50"], [class*="bg-indigo-50"], span[class*="text-sky-600"], span[class*="text-[#3f809e]"] {
+    background-color: #e0f2fe !important;
+    color: #075985 !important;
+    border: 2px solid #0369a1 !important;
+    border-radius: 8px !important;
+    padding: 3px 10px !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+    display: inline-block !important;
+    font-weight: 900 !important;
+  }
+
+  /* Configurable Watermark support on physical printouts */
+  body.has-print-watermark::before {
+    content: attr(data-print-watermark);
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%) rotate(-45deg);
+    font-size: 80px;
+    font-weight: 900;
+    font-family: 'JetBrains Mono', 'Inter', monospace;
+    color: rgba(0, 0, 0, 0.05) !important; /* faint grey */
+    z-index: -99999;
+    pointer-events: none;
+    white-space: nowrap;
+    text-transform: uppercase;
+    letter-spacing: 0.15em;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  /* Monochrome status indicators replaced with visual icons via pseudo-elements */
+  .status-present::before, .status-approved::before, [data-status="present"]::before, [data-status="approved"]::before, [data-status="Active"]::before {
+    content: "☑ " !important;
+    font-size: 11px !important;
+    font-weight: bold !important;
+    margin-right: 4px !important;
+  }
+  .status-absent::before, .status-rejected::before, [data-status="absent"]::before, [data-status="rejected"]::before, [data-status="Inactive"]::before {
+    content: "☒ " !important;
+    font-size: 11px !important;
+    font-weight: bold !important;
+    margin-right: 4px !important;
+  }
+  .status-late::before, .status-pending::before, [data-status="late"]::before, [data-status="pending"]::before {
+    content: "⚠ " !important;
+    font-size: 11px !important;
+    font-weight: bold !important;
+    margin-right: 4px !important;
+  }
+
+  /* Support for QR validation placeholder formatting in print footers */
+  .qr-verification-placeholder {
+    display: flex !important;
+    width: 32px !important;
+    height: 32px !important;
+    border: 1px solid #777777 !important;
+    padding: 2px !important;
+    background-color: #ffffff !important;
+    box-sizing: border-box !important;
+  }
+
+  /* Avoid backgrounds or use standard colors */
+  th {
+    background-color: #f1f5f9 !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  /* Support for QR print helper layout styles */
+  .qr-print-layout {
+    break-inside: avoid;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+}
+
+/* Custom physical print sheet sizes classes mapping */
+@page a4_pt {
+  size: A4 portrait;
+  margin: 10mm 15mm 10mm 15mm;
+}
+@page letter_pt {
+  size: letter portrait;
+  margin: 10mm 15mm 10mm 15mm;
+}
+@page legal_pt {
+  size: legal portrait;
+  margin: 14mm 15mm 14mm 15mm;
+}
+
+body.print-size-a4 {
+  page: a4_pt !important;
+}
+body.print-size-letter {
+  page: letter_pt !important;
+}
+body.print-size-legal {
+  page: legal_pt !important;
+}
+
+@media print {
+  /* Bulletproof layout size lock for physical office trays */
+  body.print-size-a4 main, body.print-size-a4 .printable-page {
+    width: 210mm !important;
+    max-width: 210mm !important;
+  }
+  body.print-size-letter main, body.print-size-letter .printable-page {
+    width: 8.5in !important;
+    max-width: 8.5in !important;
+  }
+  body.print-size-legal main, body.print-size-legal .printable-page {
+    width: 8.5in !important;
+    max-width: 8.5in !important;
+    height: 14in !important;
+  }
+}
+

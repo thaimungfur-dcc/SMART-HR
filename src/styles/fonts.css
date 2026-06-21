@@ -1,0 +1,766 @@
+/* ==========================================================================
+   CONFIGURABLE BRAND FONTS & SYSTEM TYPOGRAPHY SUBSYSTEM
+   ==========================================================================
+   ระบบจัดการฟอนต์ ขนาด และสไตล์แบบแยกส่วน (Modular Typography Registry)
+   คุณสามารถเข้ามาแก้ไข ชื่อฟอนต์ (Font Family) และ ขนาดอักษร (Size) ของจุดต่าง ๆ
+   แยกจากกันได้อย่างเป็นอิสระ 100% โดยไม่มีผลกระทบต่อกันและกัน!
+   -------------------------------------------------------------------------- */
+
+:root {
+  /* ==========================================================================
+     [SECTION A: EXCLUSIVE BRAND FONTS & SIZES]
+     ส่วนที่ 1: ชื่อระบบและข้อความโปรโมทหลัก (แยกข้อความหลักและคำอธิบายเป็นอิสระต่อกัน)
+     ========================================================================== */
+
+  /* 1. [LOGIN_SYSTEM] หน้าล็อกอิน "SMART HR V1.0" */
+  --login-sys-font: "Inter", "Noto Sans Thai", sans-serif;
+  --login-sys-size: 75px;                /* ⚡ [แก้ไขขนาดอักษรที่นี่] ⚡ */
+  --login-sys-weight: 900;               /* 💪 [แก้ไขความหนาที่นี่: 100 ถึง 900] */
+  --login-sys-spacing: 0.1em;            /* ↔️ [แก้ไขระยะห่างพยัญชนะ] */
+
+  /* 2. [SIDEBAR_SYSTEM_NAME] โลโก้ชื่อระบบและคำอธิบายแถบเมนูด้านซ้ายบนสุด "SMART HR" */
+  /* [2.1] ข้อความหลัก (SMART HR) */
+  --sidebar-logo-font: "Inter", "Noto Sans Thai", sans-serif;
+  --sidebar-logo-size: 24px;             /* ⚡ [แก้ไขขนาดอักษรที่นี่] ⚡ */
+  --sidebar-logo-weight: 900;            /* 💪 [แก้ไขความหนาที่นี่: 100 ถึง 900] */
+  --sidebar-logo-spacing: 0.2em;       /* ↔️ [แก้ไขระยะห่างพยัญชนะ] */
+
+  /* [2.2] คำอธิบายโลโก้ (HUMAN CAPITAL MANAGEMENT) */
+  --sidebar-logo-desc-font: "JetBrains Mono", "Noto Sans Thai", "Inter", sans-serif;
+  --sidebar-logo-desc-size: 8px;         /* ⚡ [แก้ไขขนาดอักษรคำอธิบายที่นี่] ⚡ */
+  --sidebar-logo-desc-weight: 700;       /* 💪 [แก้ไขความหนาคำอธิบายที่นี่] */
+  --sidebar-logo-desc-spacing: 0.15em;    /* ↔️ [แก้ไขระยะห่างคำอธิบายที่นี่] */
+
+
+  /* 3. [TOPBAR_HEADER] ข้อความชื่อระบบบนแถบส่วนบนสุดของระบบ (Topbar) */
+  /* [3.1] ข้อความหลัก (SMART HUMAN CAPITAL MANAGEMENT) */
+  --topbar-title-font: "Inter", "Noto Sans Thai", sans-serif;
+  --topbar-title-size: 22px;             /* ⚡ [แก้ไขขนาดอักษรที่นี่] ⚡ */
+  --topbar-title-weight: 600;            /* 💪 [แก้ไขความหนาที่นี่: 100 ถึง 900] */
+  --topbar-title-spacing: 0.025em;       /* ↔️ [แก้ไขระยะห่างพยัญชนะ] */
+
+  /* [3.2] คำอธิบาย/ข้อความย่อย (INTEGRATED TALENT AND RESOURCE MANAGEMENT) */
+  --topbar-desc-font: "Inter", "Noto Sans Thai", sans-serif;
+  --topbar-desc-size: 9.5px;             /* ⚡ [แก้ไขขนาดอักษรคำอธิบายที่นี่] ⚡ */
+  --topbar-desc-weight: 700;             /* 💪 [แก้ไขความหนาคำอธิบายที่นี่] */
+  --topbar-desc-spacing: 0.2em;          /* ↔️ [แก้ไขระยะห่างคำอธิบายที่นี่] */
+
+
+  /* 4. [GREETING_MORNING] ข้อความกล่าวรับทักทายตอนเช้าหน้าแรกสุด "Morning, Super Admin!" */
+  --greeting-font: "Inter", "Noto Sans Thai", sans-serif;
+  --greeting-size: 2.25rem;              /* ⚡ [แก้ไขขนาดอักษรที่นี่ (2.25rem = 36px)] */
+  --greeting-weight: 400;                /* 💪 [แก้ไขความหนาที่นี่] */
+  --greeting-spacing: -0.025em;          /* ↔️ [แก้ไขระยะห่างพยัญชนะ] */
+
+
+  /* 5. [HERO_BANNER] ข้อความหลักและข้อความรองบน Hero Banner หน้าระบบแผงแรก */
+  /* [5.1] ข้อความหลัก (Value of Strategic Personnel) */
+  --hero-title-font: "Inter", "Noto Sans Thai", sans-serif;
+  --hero-title-size: 1.875rem;           /* ⚡ [แก้ไขขนาดอักษรหลักที่นี่ (1.875rem = 30px)] */
+  --hero-title-weight: 900;              /* 💪 [แก้ไขความหนาข้อความหลัก] */
+  --hero-title-spacing: -0.025em;        /* ↔️ [แก้ไขระยะห่างคำหลัก] */
+
+  /* [5.2] ข้อความรอง / คำโควท / คำอธิบายบอร์ด (Intellectual Capital Hub / Spits quotes) */
+  --hero-desc-font: "Inter", "Noto Sans Thai", sans-serif;
+  --hero-desc-size: 12px;                /* ⚡ [แก้ไขขนาดอักษรรองที่นี่] ⚡ */
+  --hero-desc-weight: 600;               /* 💪 [แก้ไขความหนาข้อความรอง] */
+  --hero-desc-spacing: 0.025em;          /* ↔️ [แก้ไขระยะห่างข้อความรอง] */
+
+
+  /* 6. [PAGE_HEADER] ชื่อหน้าและคำอธิบายส่วนหัวสุดของแต่ละระบบย่อย (เช่น "SALARY MASTER" ฯลฯ) */
+  /* [6.1] ข้อความหลัก (ONBOARDING GATEWAY, STAFF MORALE ฯลฯ) */
+  --page-title-font: "Inter", "Noto Sans Thai", sans-serif;
+  --page-title-size: 24px;               /* ⚡ [แก้ไขขนาดอักษรหลักที่นี่] ⚡ */
+  --page-title-weight: 900;              /* 💪 [แก้ไขความหนาข้อความหลัก] */
+  --page-title-spacing: 0.1em;         /* ↔️ [แก้ไขระยะห่างคำข้อความหลัก] */
+
+  /* [6.2] ข้อความอธิบาย / ชื่อหน้าย่อยเชิงลึก */
+  --page-desc-font: "Inter", "Noto Sans Thai", sans-serif;
+  --page-desc-size: 11px;                /* ⚡ [แก้ไขขนาดอักษรคำอธิบายที่นี่] ⚡ */
+  --page-desc-weight: 500;               /* 💪 [แก้ไขความหนาข้อความคำอธิบาย] */
+  --page-desc-spacing: 0.20em;           /* ↔️ [แก้ไขระยะห่างพยัญชนะคำอธิบาย] */
+
+
+  /* ==========================================================================
+     [SECTION B: CORE SYSTEM INFRASTRUCTURE FONTS]
+     ส่วนที่ 2: ฟอนต์และขนาดทางระบบโครงสร้างพื้นฐานหลัก 6 ส่วนหลัก
+     ========================================================================== */
+
+  /* 7. [SYSTEM_SIDEBAR] องค์ประกอบในแถบนำทางเมนูด้านข้าง Sidebar ทั้งหมด */
+  /* [7.1] ชื่อหมวด (Category Names) */
+  --sidebar-cat-font: "JetBrains Mono", "Noto Sans Thai", "Inter", sans-serif;
+  --sidebar-cat-size: 10px;               /* ⚡ [แก้ไขขนาดอักษรชื่อหมวด] ⚡ */
+  --sidebar-cat-weight: 900;              /* 💪 [แก้ไขความหนาตัวเลือกหมวด] */
+  --sidebar-cat-spacing: 0.20em;          /* ↔️ [แก้ไขระยะห่างเสี้ยวพยางค์] */
+
+  /* [7.2] ชื่อโมดูล (Module Names) */
+  --sidebar-mod-font: "JetBrains Mono", "Noto Sans Thai", "Inter", sans-serif;
+  --sidebar-mod-size: 12px;               /* ⚡ [แก้ไขขนาดอักษรชื่อโมดูล] ⚡ */
+  --sidebar-mod-weight: 900;              /* 💪 [แก้ไขความหนาอักษรชื่อโมดูล] */
+  --sidebar-mod-spacing: 0.05em;          /* ↔️ [แก้ไขระยะห่างชื่อโมดูล] */
+
+  /* [7.3] ชื่อเมนูย่อย (Submenu/Menu Items) */
+  --sidebar-menu-font: "JetBrains Mono", "Noto Sans Thai", "Inter", sans-serif;
+  --sidebar-menu-size: 11px;              /* ⚡ [แก้ไขขนาดอักษรชื่อตัวเลือกเมนูย่อย] ⚡ */
+  --sidebar-menu-weight: 700;             /* 💪 [แก้ไขความหนาอักษรชื่อเมนูย่อย] */
+  --sidebar-menu-spacing: 0.05em;         /* ↔️ [แก้ไขระยะห่างชื่อเมนูย่อย] */
+
+
+  /* 8. [SYSTEM_DATA_TABLES] ตารางข้อมูลทั้งหมดขององค์กร */
+  /* [8.1] ส่วนหัวตาราง (Table Header) */
+  --table-header-font: "JetBrains Mono", "Noto Sans Thai", "Inter", sans-serif;
+  --table-header-size: 12px;              /* ⚡ [แก้ไขขนาดอักษรหัวข้อตาราง] ⚡ */
+  --table-header-weight: 700;             /* 💪 [ความหนาหัวตาราง] */
+  --table-header-spacing: 0.025em;        /* ↔️ [ระยะห่าง] */
+
+  /* [8.2] ส่วนเนื้อหาตาราง (Table Body) */
+  --table-body-font: "JetBrains Mono", "Noto Sans Thai", "Inter", sans-serif;
+  --table-body-size: 12px;                /* ⚡ [แก้ไขขนาดข้อมูลเนื้อหาในตาราง] ⚡ */
+  --table-body-weight: 500;               /* 💪 [ความหนา] */
+  --table-body-spacing: normal;           /* ↔️ [ระยะห่าง] */
+
+  /* [8.3] ป้ายระบุสถานะสีสัน (Badge) */
+  --badge-sys-font: "JetBrains Mono", "Noto Sans Thai", "Inter", sans-serif;
+  --badge-sys-size: 11px;                 /* ⚡ [แก้ไขขนาดตัวหนังสือบอร์ด/ป้ายสถานะ (11px)] ⚡ */
+  --badge-sys-weight: 700;                /* 💪 [ความหนา] */
+
+
+  /* 9. [SYSTEM_CONTAINERS] ส่วนกรอบเนื้อหาโครงร่างภายนอก (Main Containers) */
+  /* [9.1] ชื่อ Container (Container Title) */
+  --container-title-font: "Inter", "Noto Sans Thai", sans-serif;
+  --container-title-size: 16px;           /* ⚡ [แก้ไขขนาดอักษรหัวเรื่องคอนเทนเนอร์] ⚡ */
+  --container-title-weight: 700;          /* 💪 [ความหนา] */
+  --container-title-spacing: normal;      /* ↔️ [ระยะห่าง] */
+
+  /* [9.2] หัวข้อในส่วนเนื้อหา (Container Heading) */
+  --container-heading-font: "Inter", "Noto Sans Thai", sans-serif;
+  --container-heading-size: 14px;         /* ⚡ [แก้ไขขนาดอักษรหัวข้อย่อยด้านใน] ⚡ */
+  --container-heading-weight: 600;          /* 💪 [ความหนา] */
+  --container-heading-spacing: normal;      /* ↔️ [ระยะห่าง] */
+
+  /* [9.3] เนื้อหา (Container Body) */
+  --container-body-font: "JetBrains Mono", "Noto Sans Thai", "Inter", sans-serif;
+  --container-body-size: 12px;            /* ⚡ [แก้ไขขนาดอักษรเนื้อความด้านใน] ⚡ */
+  --container-body-weight: 400;           /* 💪 [ความหนา] */
+  --container-body-spacing: normal;       /* ↔️ [ระยะห่าง] */
+
+  /* [9.4] ส่วนท้าย หรือ Pagination (ถ้ามี) (Container Footer) */
+  --container-footer-font: "JetBrains Mono", "Noto Sans Thai", "Inter", sans-serif;
+  --container-footer-size: 12px;          /* ⚡ [แก้ไขขนาดอักษรส่วนท้ายคอนเทนเนอร์] ⚡ */
+  --container-footer-weight: 500;         /* 💪 [ความหนา] */
+  --container-footer-spacing: normal;     /* ↔️ [ระยะห่าง] */
+
+
+  /* 10. [SYSTEM_PAGINATION] ส่วนของแผงสวิตช์ย้ายหน้าแสดงผลรายการตารางด้านหลังสุด (Pagination) */
+  --pagination-sys-font: "JetBrains Mono", "Noto Sans Thai", "Inter", sans-serif;
+  --pagination-sys-size: 12px;            /* ⚡ [แก้ไขขนาดแถบสวิตช์ย้ายหน้า] ⚡ */
+
+
+  /* 11. [SYSTEM_KPI_CARDS] การ์ดสรุปผล KPI สถิติตัวเลขอันทรงคุณค่า (KPI Dashboard Cards) */
+  /* [11.1] ตัวเลขสถิติหลัก (KPI Value) */
+  --kpi-value-font: "JetBrains Mono", "Noto Sans Thai", "Inter", sans-serif;
+  --kpi-value-size: 1.875rem;             /* ⚡ [แก้ไขขนาดตัวเลข (1.875rem = 30px หรือ 3xl) - ตัวเลขเป็น 3xl Bold] ⚡ */
+  --kpi-value-weight: 900;                /* 💪 [ความหนาตัวเลข Bold] */
+
+  /* [11.2] หัวเรื่องอธิบาย (KPI Title) */
+  --kpi-title-font: "JetBrains Mono", "Noto Sans Thai", "Inter", sans-serif;
+  --kpi-title-size: 12px;                 /* ⚡ [แก้ไขขนาดหัวข้อการ์ด (12px)] ⚡ */
+  --kpi-title-weight: 900;                /* 💪 [ความหนา font-black] */
+
+  /* [11.3] คำอธิบายเสริมเพิ่มเติมด้านล่าง (KPI Description) */
+  --kpi-desc-font: "JetBrains Mono", "Noto Sans Thai", "Inter", sans-serif;
+  --kpi-desc-size: 11px;                  /* ⚡ [แก้ไขขนาดคำบรรยายการ์ด (11px)] ⚡ */
+  --kpi-desc-weight: 700;                 /* 💪 [ความหนา] */
+
+
+  /* 12. [SYSTEM_MODALS_DIALOGS] หน้าต่างแจ้งเตือนทำรายการ บับเบิล และป๊อปอัป (Modals & Dialogs) */
+  /* [12.1] หัวข้อส่วนหัวสุดของ Modal (Modal Title) */
+  --modal-title-font: "JetBrains Mono", "Noto Sans Thai", "Inter", sans-serif;
+  --modal-title-size: 16px;               /* ⚡ [แก้ไขขนาดหมวด/หัวข้อป๊อปอัปที่นี่] ⚡ */
+  --modal-title-weight: 900;              /* 💪 [ความหนา] */
+
+  /* [12.2] คำชี้แจงย่อยใต้ส่วนหัวสุด (Modal Subtitle / Description) */
+  --modal-desc-font: "JetBrains Mono", "Noto Sans Thai", "Inter", sans-serif;
+  --modal-desc-size: 11px;                /* ⚡ [แก้ไขขนาดที่นี่] ⚡ */
+  --modal-desc-weight: 500;               /* 💪 [ความหนา] */
+
+  /* [12.3] หัวข้อย่อยในส่วนเนื้อหาของบอร์ด (Section Headings in Content) */
+  --modal-heading-font: "JetBrains Mono", "Noto Sans Thai", "Inter", sans-serif;
+  --modal-heading-size: 13px;             /* ⚡ [แก้ไขขนาดหัวข้อหลักเนื้อหาที่นี่] ⚡ */
+  --modal-heading-weight: 700;            /* 💪 [ความหนาหัวข้อเนื้อหา] */
+
+  /* [12.4] ข้อความเนื้อหารายการฟิลด์/กล่องกรอกข้อมูล (Content Body) */
+  --modal-body-font: "JetBrains Mono", "Noto Sans Thai", "Inter", sans-serif;
+  --modal-body-size: 12px;                /* ⚡ [แก้ไขขนาดที่นี่] ⚡ */
+  --modal-body-weight: 400;               /* 💪 [ความหนาตัวหนังสือกระดาษเนื้อหา] */
+
+  /* [12.5] ปุ่มประมวลผล สวิตช์ ส่วนล่างสุด (Modal Footer & Buttons) */
+  --modal-footer-font: "JetBrains Mono", "Noto Sans Thai", "Inter", sans-serif;
+  --modal-footer-size: 12px;              /* ⚡ [แก้ไขขนาดข้อความตรงฟุตเตอร์ป๊อปอัปที่นี่] ⚡ */
+  --modal-footer-weight: 500;             /* 💪 [ความหนา] */
+
+  /* 13. [CAROUSEL_ANNOUNCEMENTS] ฟอนต์ของ slider หรือ carousel */
+  --carousel-tag-font: "Inter", "Noto Sans Thai", sans-serif;
+  --carousel-tag-size: 11.5px;
+  --carousel-tag-weight: 800;
+  
+  --carousel-subtitle-font: "Inter", "Noto Sans Thai", sans-serif;
+  --carousel-subtitle-size: 10px;
+  --carousel-subtitle-weight: 700;
+  
+  --carousel-subject-font: "JetBrains Mono", "Noto Sans Thai", "Inter", monospace;
+  --carousel-subject-size: 12px;
+  --carousel-subject-weight: 900;
+  
+  --carousel-date-font: "JetBrains Mono", "Noto Sans Thai", monospace;
+  --carousel-date-size: 10px;
+  --carousel-date-weight: 800;
+
+  /* 14. [SYSTEM_FOOTER] ฟอนต์ของ footer */
+  --footer-title-font: "JetBrains Mono", "Noto Sans Thai", monospace;
+  --footer-title-size: 10.5px;
+  --footer-title-weight: 900;
+  --footer-title-spacing: 0.12em;
+  
+  --footer-details-font: "JetBrains Mono", "Noto Sans Thai", "Inter", monospace;
+  --footer-details-size: 11px;
+  --footer-details-weight: 500;
+  --footer-details-spacing: normal;
+
+  /* 15. [QUICK_SHORTCUT] ฟอนต์ของ QUICK SHORTCUT */
+  --quick-shortcut-title-font: "Inter", "Noto Sans Thai", sans-serif;
+  --quick-shortcut-title-size: 18px;
+  --quick-shortcut-title-weight: 900;
+  --quick-shortcut-title-spacing: 0.025em;
+
+  --quick-shortcut-desc-font: "Inter", "Noto Sans Thai", sans-serif;
+  --quick-shortcut-desc-size: 10.5px;
+  --quick-shortcut-desc-weight: 955;
+  --quick-shortcut-desc-spacing: 0.15em;
+
+  --quick-shortcut-item-title-font: "JetBrains Mono", "Noto Sans Thai", "Inter", monospace;
+  --quick-shortcut-item-title-size: 12px;
+  --quick-shortcut-item-title-weight: 900;
+  --quick-shortcut-item-title-spacing: 0.05em;
+
+  --quick-shortcut-item-body-font: "JetBrains Mono", "Noto Sans Thai", "Inter", monospace;
+  --quick-shortcut-item-body-size: 10px;
+  --quick-shortcut-item-body-weight: 500;
+
+  /* 16. [CARDS_NEW_MEMBERS] ฟอนต์ของ การ์ดต่างๆ เช่น OUR NEW FAMILY MEMBERS */
+  --news-card-title-font: "Inter", "Noto Sans Thai", sans-serif;
+  --news-card-title-size: 14px;
+  --news-card-title-weight: 900;
+  --news-card-title-spacing: 0.05em;
+
+  --news-card-item-title-font: "Inter", "Noto Sans Thai", sans-serif;
+  --news-card-item-title-size: 14px;
+  --news-card-item-title-weight: 700;
+
+  --news-card-item-body-font: "Inter", "Noto Sans Thai", sans-serif;
+  --news-card-item-body-size: 10px;
+  --news-card-item-body-weight: 500;
+  
+  --news-card-item-role-font: "Inter", "Noto Sans Thai", sans-serif;
+  --news-card-item-role-size: 9px;
+  --news-card-item-role-weight: 900;
+  --news-card-item-role-spacing: 0.15em;
+
+  /* 17. [CHARTS_ANALYTICS] ฟอนต์ของ การ์ดกราฟแสดงผลการวิเคราะห์ต่างๆ */
+  --chart-card-title-font: "Inter", "Noto Sans Thai", sans-serif;
+  --chart-card-title-size: 12px;
+  --chart-card-title-weight: 900;
+  --chart-card-title-spacing: 0.05em;
+
+  --chart-card-desc-font: "Inter", "Noto Sans Thai", sans-serif;
+  --chart-card-desc-size: 9px;
+  --chart-card-desc-weight: 950;
+  --chart-card-desc-spacing: 0.2em;
+
+  --chart-card-item-label-font: "JetBrains Mono", "Noto Sans Thai", monospace;
+  --chart-card-item-label-size: 10px;
+  --chart-card-item-label-weight: 900;
+  --chart-card-item-label-spacing: normal;
+
+  /* 18. [SETTINGS_LISTS] ฟอนต์ของ รายการตารางตั้งค่าในระบบ */
+  --settings-list-title-font: "Inter", "Noto Sans Thai", sans-serif;
+  --settings-list-title-size: 14px;
+  --settings-list-title-weight: 900;
+  --settings-list-title-spacing: 0.1em;
+
+  --settings-list-item-title-font: "JetBrains Mono", "Noto Sans Thai", "Inter", monospace;
+  --settings-list-item-title-size: 12px;
+  --settings-list-item-title-weight: 900;
+  --settings-list-item-title-spacing: 0.1em;
+
+  --settings-list-item-desc-font: "JetBrains Mono", "Noto Sans Thai", monospace;
+  --settings-list-item-desc-size: 11px;
+  --settings-list-item-desc-weight: 900;
+  --settings-list-item-desc-spacing: 0.1em;
+}
+
+
+/* ==========================================================================
+   EXCLUSIVE BRAND FONT MAPPINGS & RULES (SECTION A)
+   การระบุใช้คุณสมบัติเพื่อดึงค่าจากตัวแปรด้านบนมาครอบคลุมองค์ประกอบพิเศษ
+   ========================================================================== */
+
+/* 1. ชื่อระบบในหน้าล็อกอิน */
+#root .font-login-system-name,
+#root [class*="font-login-system-name"] {
+  font-family: var(--login-sys-font) !important;
+  font-size: var(--login-sys-size) !important;
+  font-weight: var(--login-sys-weight) !important;
+  letter-spacing: var(--login-sys-spacing) !important;
+  line-height: 1.0 !important;
+}
+
+/* 2.1 โลโก้ชื่อระบบในแถบนำทาง Sidebar (ข้อความหลัก) */
+#root .font-sidebar-system-name,
+#root [class*="font-sidebar-system-name"] {
+  font-family: var(--sidebar-logo-font) !important;
+  font-size: var(--sidebar-logo-size) !important;
+  font-weight: var(--sidebar-logo-weight) !important;
+  letter-spacing: var(--sidebar-logo-spacing) !important;
+  line-height: 1.0 !important;
+  white-space: nowrap !important;
+}
+#root .font-sidebar-system-name span,
+#root [class*="font-sidebar-system-name"] span {
+  font-family: var(--sidebar-logo-font) !important;
+  font-size: inherit !important;
+  font-weight: inherit !important;
+}
+
+/* 2.2 คำอธิบายโลโก้ ชื่อระบบในแถบนำทาง Sidebar (ข้อความรอง/คำอธิบาย) */
+#root .font-sidebar-system-desc,
+#root [class*="font-sidebar-system-desc"] {
+  font-family: var(--sidebar-logo-desc-font) !important;
+  font-size: var(--sidebar-logo-desc-size) !important;
+  font-weight: var(--sidebar-logo-desc-weight) !important;
+  letter-spacing: var(--sidebar-logo-desc-spacing) !important;
+  line-height: 1.2 !important;
+  white-space: nowrap !important;
+}
+
+/* 3.1 ข้อความหัวหลักบนแถบบนสุด Topbar (ข้อความหลัก) */
+#root .font-topbar-header-title,
+#root .font-topbar-header-text,
+#root [class*="font-topbar-header-title"],
+#root [class*="font-topbar-header-text"] {
+  font-family: var(--topbar-title-font) !important;
+  font-size: var(--topbar-title-size) !important;
+  font-weight: var(--topbar-title-weight) !important;
+  letter-spacing: var(--topbar-title-spacing) !important;
+  white-space: nowrap !important;
+}
+
+/* 3.2 คำอธิบายบนแถบบนสุด Topbar (คำอธิบาย) */
+#root .font-topbar-header-desc,
+#root [class*="font-topbar-header-desc"] {
+  font-family: var(--topbar-desc-font) !important;
+  font-size: var(--topbar-desc-size) !important;
+  font-weight: var(--topbar-desc-weight) !important;
+  letter-spacing: var(--topbar-desc-spacing) !important;
+  white-space: nowrap !important;
+}
+
+/* 4. ข้อความกล่าวทักทายตอนเช้า */
+#root .font-greeting-morning,
+#root [class*="font-greeting-morning"] {
+  font-family: var(--greeting-font) !important;
+  font-size: var(--greeting-size) !important;
+  font-weight: var(--greeting-weight) !important;
+  letter-spacing: var(--greeting-spacing) !important;
+}
+
+/* 5.1 ข้อความย่อย / สองใน Hero Banner (คำอธิบาย / tag / quote) */
+#root .font-hero-banner-desc,
+#root [class*="font-hero-banner-desc"] {
+  font-family: var(--hero-desc-font) !important;
+  font-size: var(--hero-desc-size) !important;
+  font-weight: var(--hero-desc-weight) !important;
+  letter-spacing: var(--hero-desc-spacing) !important;
+}
+
+/* 5.2 ข้อความหลักใน Hero Banner (ข้อความหลัก) */
+#root .font-hero-banner-main,
+#root [class*="font-hero-banner-main"] {
+  font-family: var(--hero-title-font) !important;
+  font-size: var(--hero-title-size) !important;
+  font-weight: var(--hero-title-weight) !important;
+  letter-spacing: var(--hero-title-spacing) !important;
+}
+#root .font-hero-banner-main span,
+#root [class*="font-hero-banner-main"] span {
+  font-family: var(--hero-title-font) !important;
+}
+
+/* 6.1 ชื่อหน้าในแถว Page Header ทุกหน้า (ข้อความหลัก) */
+#root .font-page-header-title,
+#root [class*="font-page-header-title"] {
+  font-family: var(--page-title-font) !important;
+  font-size: var(--page-title-size) !important;
+  font-weight: var(--page-title-weight) !important;
+  letter-spacing: var(--page-title-spacing) !important;
+  line-height: 1.2 !important;
+}
+
+/* 6.2 คำอธิบายชื่อหน้าในแถว Page Header ทุกหน้า (คำอธิบาย) */
+#root .font-page-header-desc,
+#root [class*="font-page-header-desc"],
+#root .font-page-header-title + p,
+#root .font-page-header-title + span,
+#root .font-exception-header + p {
+  font-family: var(--page-desc-font) !important;
+  font-size: var(--page-desc-size) !important;
+  font-weight: var(--page-desc-weight) !important;
+  letter-spacing: var(--page-desc-spacing) !important;
+  line-height: 1.2 !important;
+}
+
+
+/* ==========================================================================
+   SYSTEM CORE INFRASTRUCTURE MAPPINGS & RULES (SECTION B)
+   ควบคุม ฟอนต์ และ ขนาด แบบปกคลุมทุกองค์ประกอบระบบโดยแยกกันทำงานอย่างสมบูรณ์
+   ========================================================================== */
+
+/* 7. Sidebar (แถบนำทางด้านข้าง) */
+/* ชื่อหมวด (Category Names) */
+#root .font-sidebar-category-name,
+#root [class*="font-sidebar-category-name"],
+aside h3 {
+  font-family: var(--sidebar-cat-font) !important;
+  font-size: var(--sidebar-cat-size) !important;
+  font-weight: var(--sidebar-cat-weight) !important;
+  letter-spacing: var(--sidebar-cat-spacing) !important;
+}
+
+/* ชื่อโมดูล (Module Names) */
+#root .font-sidebar-module-name,
+#root [class*="font-sidebar-module-name"],
+aside a[class*="text-[13px]"],
+aside div[class*="text-[12px]"],
+aside a[class*="text-[12px]"] {
+  font-family: var(--sidebar-mod-font) !important;
+  font-size: var(--sidebar-mod-size) !important;
+  font-weight: var(--sidebar-mod-weight) !important;
+  letter-spacing: var(--sidebar-mod-spacing) !important;
+}
+
+/* ชื่อตัวเลือกย่อย/เมนู (Menu Items) */
+#root .font-sidebar-menu-item,
+#root [class*="font-sidebar-menu-item"],
+aside a[class*="text-[11px]"] {
+  font-family: var(--sidebar-menu-font) !important;
+  font-size: var(--sidebar-menu-size) !important;
+  font-weight: var(--sidebar-menu-weight) !important;
+  letter-spacing: var(--sidebar-menu-spacing) !important;
+}
+
+/* 8. Data Tables (ตารางข้อมูลทั้งหมด) */
+/* Header */
+table th,
+thead th,
+.data-table th,
+#root .font-table-header,
+#root [class*="font-table-header"] {
+  font-family: var(--table-header-font) !important;
+  font-size: var(--table-header-size) !important;
+  font-weight: var(--table-header-weight) !important;
+  letter-spacing: var(--table-header-spacing) !important;
+}
+
+/* Body / Table general cells */
+table td,
+tbody td,
+tr td,
+.data-table td,
+#root .font-table-body,
+#root [class*="font-table-body"] {
+  font-family: var(--table-body-font) !important;
+  font-size: var(--table-body-size) !important;
+  font-weight: var(--table-body-weight) !important;
+  letter-spacing: var(--table-body-spacing) !important;
+}
+
+/* Badge (ป้ายสถานะ 11px) */
+.badge,
+[class*="badge"],
+[class*="-badge"],
+#root .font-badge-sys,
+#root [class*="font-badge-sys"] {
+  font-family: var(--badge-sys-font) !important;
+  font-size: var(--badge-sys-size) !important;
+  font-weight: var(--badge-sys-weight) !important;
+}
+
+/* Fallback ทั่วไปสำหรับ Table ถ้าไม่ตรงอันด้านบน */
+table,
+thead,
+tbody,
+.data-table,
+[class*="table"]:not([class*="font-"]):not([id*="table"]) {
+  font-family: var(--table-body-font) !important;
+  font-size: var(--table-body-size) !important;
+}
+
+/* 9. Main Content Containers (ส่วนเนื้อหาหลักและกรอบนอก) */
+#root .font-container-title,
+#root [class*="font-container-title"] {
+  font-family: var(--container-title-font) !important;
+  font-size: var(--container-title-size) !important;
+  font-weight: var(--container-title-weight) !important;
+  letter-spacing: var(--container-title-spacing) !important;
+}
+
+#root .font-container-heading,
+#root [class*="font-container-heading"] {
+  font-family: var(--container-heading-font) !important;
+  font-size: var(--container-heading-size) !important;
+  font-weight: var(--container-heading-weight) !important;
+  letter-spacing: var(--container-heading-spacing) !important;
+}
+
+#root .font-container-body,
+#root [class*="font-container-body"] {
+  font-family: var(--container-body-font) !important;
+  font-size: var(--container-body-size) !important;
+  font-weight: var(--container-body-weight) !important;
+  letter-spacing: var(--container-body-spacing) !important;
+}
+
+#root .font-container-footer,
+#root [class*="font-container-footer"] {
+  font-family: var(--container-footer-font) !important;
+  font-size: var(--container-footer-size) !important;
+  font-weight: var(--container-footer-weight) !important;
+  letter-spacing: var(--container-footer-spacing) !important;
+}
+
+.container,
+[class*="container"]:not([class*="font-"]):not([id*="container"]) {
+  font-family: var(--container-body-font) !important;
+  font-size: var(--container-body-size) !important;
+}
+
+/* 10. Pagination (แถบเปลี่ยนหน้า) */
+.pagination,
+[class*="pagination"]:not([class*="font-"]) {
+  font-family: var(--pagination-sys-font) !important;
+  font-size: var(--pagination-sys-size) !important;
+}
+
+/* 11. KPI Cards (การ์ดสรุปข้อมูลทั้งหมด) */
+/* KPI Value (ตัวเลขสถิติ) */
+#root .font-kpi-value,
+#root [class*="font-kpi-value"] {
+  font-family: var(--kpi-value-font) !important;
+  font-size: var(--kpi-value-size) !important;
+  font-weight: var(--kpi-value-weight) !important;
+}
+
+/* KPI Title (หัวข้อการ์ด) */
+#root .font-kpi-title,
+#root [class*="font-kpi-title"] {
+  font-family: var(--kpi-title-font) !important;
+  font-size: var(--kpi-title-size) !important;
+  font-weight: var(--kpi-title-weight) !important;
+}
+
+/* KPI Description (คำบรรยาย) */
+#root .font-kpi-desc,
+#root [class*="font-kpi-desc"] {
+  font-family: var(--kpi-desc-font) !important;
+  font-size: var(--kpi-desc-size) !important;
+  font-weight: var(--kpi-desc-weight) !important;
+}
+
+/* Fallback การ์ดทั่วไป */
+.kpi-card,
+.card,
+[class*="card"]:not([class*="font-"]):not([class*="kpi"]) {
+  font-family: var(--table-body-font) !important;
+}
+
+/* 12. Modals/Dialogs (หน้าต่างแจ้งเตือนและกล่องทำรายการ) */
+#root .font-modal-title,
+#root [class*="font-modal-title"] {
+  font-family: var(--modal-title-font) !important;
+  font-size: var(--modal-title-size) !important;
+  font-weight: var(--modal-title-weight) !important;
+}
+
+#root .font-modal-desc,
+#root [class*="font-modal-desc"] {
+  font-family: var(--modal-desc-font) !important;
+  font-size: var(--modal-desc-size) !important;
+  font-weight: var(--modal-desc-weight) !important;
+}
+
+#root .font-modal-heading,
+#root [class*="font-modal-heading"] {
+  font-family: var(--modal-heading-font) !important;
+  font-size: var(--modal-heading-size) !important;
+  font-weight: var(--modal-heading-weight) !important;
+}
+
+#root .font-modal-body,
+#root [class*="font-modal-body"] {
+  font-family: var(--modal-body-font) !important;
+  font-size: var(--modal-body-size) !important;
+  font-weight: var(--modal-body-weight) !important;
+}
+
+#root .font-modal-footer,
+#root [class*="font-modal-footer"] {
+  font-family: var(--modal-footer-font) !important;
+  font-size: var(--modal-footer-size) !important;
+  font-weight: var(--modal-footer-weight) !important;
+}
+
+/* Fallback สำหรับ modal และ popup อื่น ๆ */
+.modal,
+.dialog,
+[class*="modal"]:not([class*="font-"]),
+[class*="dialog"]:not([class*="font-"]) {
+  font-family: var(--modal-body-font) !important;
+  font-size: var(--modal-body-size) !important;
+}
+
+/* ตัวเลือกควบคุมการรับส่งข้อความ ฟอร์ม แหล่งเลือก ปุ่มกด เพื่อความลื่นไหลของระบบ */
+input,
+select,
+textarea,
+button {
+  font-family: var(--container-body-font) !important;
+}
+
+/* ==========================================================================
+   EXCLUSIVE BRAND FONT MAPPINGS - ADDITIONAL MODULES
+   ========================================================================== */
+
+/* 13. Slider or Carousel (Corporate Announcements Carousel) */
+#root .font-carousel-tag {
+  font-family: var(--carousel-tag-font) !important;
+  font-size: var(--carousel-tag-size) !important;
+  font-weight: var(--carousel-tag-weight) !important;
+}
+#root .font-carousel-subtitle {
+  font-family: var(--carousel-subtitle-font) !important;
+  font-size: var(--carousel-subtitle-size) !important;
+  font-weight: var(--carousel-subtitle-weight) !important;
+}
+#root .font-carousel-subject {
+  font-family: var(--carousel-subject-font) !important;
+  font-size: var(--carousel-subject-size) !important;
+  font-weight: var(--carousel-subject-weight) !important;
+}
+#root .font-carousel-date {
+  font-family: var(--carousel-date-font) !important;
+  font-size: var(--carousel-date-size) !important;
+  font-weight: var(--carousel-date-weight) !important;
+}
+
+/* 14. System Footer */
+#root .font-footer-title {
+  font-family: var(--footer-title-font) !important;
+  font-size: var(--footer-title-size) !important;
+  font-weight: var(--footer-title-weight) !important;
+  letter-spacing: var(--footer-title-spacing) !important;
+}
+#root .font-footer-details {
+  font-family: var(--footer-details-font) !important;
+  font-size: var(--footer-details-size) !important;
+  font-weight: var(--footer-details-weight) !important;
+  letter-spacing: var(--footer-details-spacing) !important;
+}
+
+/* 15. Quick Shortcut (Explore By Sector) */
+#root .font-quick-shortcut-title {
+  font-family: var(--quick-shortcut-title-font) !important;
+  font-size: var(--quick-shortcut-title-size) !important;
+  font-weight: var(--quick-shortcut-title-weight) !important;
+  letter-spacing: var(--quick-shortcut-title-spacing) !important;
+}
+#root .font-quick-shortcut-desc {
+  font-family: var(--quick-shortcut-desc-font) !important;
+  font-size: var(--quick-shortcut-desc-size) !important;
+  font-weight: var(--quick-shortcut-desc-weight) !important;
+  letter-spacing: var(--quick-shortcut-desc-spacing) !important;
+}
+#root .font-quick-shortcut-item-title {
+  font-family: var(--quick-shortcut-item-title-font) !important;
+  font-size: var(--quick-shortcut-item-title-size) !important;
+  font-weight: var(--quick-shortcut-item-title-weight) !important;
+  letter-spacing: var(--quick-shortcut-item-title-spacing) !important;
+}
+#root .font-quick-shortcut-item-body {
+  font-family: var(--quick-shortcut-item-body-font) !important;
+  font-size: var(--quick-shortcut-item-body-size) !important;
+  font-weight: var(--quick-shortcut-item-body-weight) !important;
+}
+
+/* 16. Cards like Our New Family Members */
+#root .font-news-card-title {
+  font-family: var(--news-card-title-font) !important;
+  font-size: var(--news-card-title-size) !important;
+  font-weight: var(--news-card-title-weight) !important;
+  letter-spacing: var(--news-card-title-spacing) !important;
+}
+#root .font-news-card-item-title {
+  font-family: var(--news-card-item-title-font) !important;
+  font-size: var(--news-card-item-title-size) !important;
+  font-weight: var(--news-card-item-title-weight) !important;
+}
+#root .font-news-card-item-body {
+  font-family: var(--news-card-item-body-font) !important;
+  font-size: var(--news-card-item-body-size) !important;
+  font-weight: var(--news-card-item-body-weight) !important;
+}
+#root .font-news-card-item-role {
+  font-family: var(--news-card-item-role-font) !important;
+  font-size: var(--news-card-item-role-size) !important;
+  font-weight: var(--news-card-item-role-weight) !important;
+  letter-spacing: var(--news-card-item-role-spacing) !important;
+}
+
+/* 17. Charts and Analytics Cards (like Headcount by Department) */
+#root .font-chart-card-title {
+  font-family: var(--chart-card-title-font) !important;
+  font-size: var(--chart-card-title-size) !important;
+  font-weight: var(--chart-card-title-weight) !important;
+  letter-spacing: var(--chart-card-title-spacing) !important;
+}
+#root .font-chart-card-desc {
+  font-family: var(--chart-card-desc-font) !important;
+  font-size: var(--chart-card-desc-size) !important;
+  font-weight: var(--chart-card-desc-weight) !important;
+  letter-spacing: var(--chart-card-desc-spacing) !important;
+}
+#root .font-chart-card-item-label {
+  font-family: var(--chart-card-item-label-font) !important;
+  font-size: var(--chart-card-item-label-size) !important;
+  font-weight: var(--chart-card-item-label-weight) !important;
+  letter-spacing: var(--chart-card-item-label-spacing) !important;
+}
+
+/* 18. Settings Lists (GLOBAL MODULE REGISTRY, SETUP Toggles, etc) */
+#root .font-settings-list-title {
+  font-family: var(--settings-list-title-font) !important;
+  font-size: var(--settings-list-title-size) !important;
+  font-weight: var(--settings-list-title-weight) !important;
+  letter-spacing: var(--settings-list-title-spacing) !important;
+}
+#root .font-settings-list-item-title {
+  font-family: var(--settings-list-item-title-font) !important;
+  font-size: var(--settings-list-item-title-size) !important;
+  font-weight: var(--settings-list-item-title-weight) !important;
+  letter-spacing: var(--settings-list-item-title-spacing) !important;
+}
+#root .font-settings-list-item-desc {
+  font-family: var(--settings-list-item-desc-font) !important;
+  font-size: var(--settings-list-item-desc-size) !important;
+  font-weight: var(--settings-list-item-desc-weight) !important;
+  letter-spacing: var(--settings-list-item-desc-spacing) !important;
+}

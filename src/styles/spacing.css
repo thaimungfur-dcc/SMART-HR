@@ -1,0 +1,677 @@
+/* ==========================================================================
+   CONFIGURABLE BRAND SPACINGS, PADDINGS, & LAYOUT SUBSYSTEM
+   ==========================================================================
+   ระบบจัดการระยะห่าง (Paddings), ระยะขอบ (Margins), ขนาดความสูง (Heights),
+   และช่องว่างระหว่างวัตถุ (Gaps) ของทั้งระบบที่แยกส่วนเป็นระบบโมดูลาร์ (Modular Spacing Registry)
+   คุณสามารถเข้ามาแก้ไข ขนาดและระยะ ต่างๆ ของส่วนต่าง ๆ ทั้ง 12 ส่วนได้ที่นี่
+   เชื่อมโยงกับระบบส่องเส้นชี้พิกัด (Visual Debugger Tooltips) เมื่อผู้พัฒนาเปิดใช้โหมด Debug 🐞
+   -------------------------------------------------------------------------- */
+
+:root {
+  /* ==========================================================================
+     [SECTION A: LAYOUT CORES & MAIN SCREENS]
+     ส่วนที่ 1: ระยะห่างและโครงสร้างหน้าหลัก
+     ========================================================================== */
+
+  /* 1. [LOGIN_SYSTEM] หน้าล็อกอิน "SMART HR V1.0" */
+  --login-sys-px: 2rem;                   /* ↔️ [แก้ไขระยะขอบข้างบอร์ดเข้าสู่ระบบ] */
+  --login-sys-py: 3rem;                   /* ↕️ [แก้ไขระยะขอบบน-ล่างบอร์ดเข้าสู่ระบบ] */
+  --login-sys-gap: 1.5rem;                /* 🔗 [แก้ไขความห่างระหว่างอินพุตปุ่มหน้าล็อกอิน] */
+  --login-logo-size: 80px;                /* 🪙 [ขนาดความกว้าง/สูงกล่องไอคอนโลโก้ล็อกอิน] */
+
+  /* 2. [SIDEBAR_SYSTEM_NAME] ความกว้างโลโก้และสัดส่วนส่วนหัว Sidebar */
+  --sidebar-logo-h: 60px;                 /* ↕️ [ความสูงของแถบหัวโลโก้ด้านซ้ายบนสุด] */
+  --sidebar-logo-px: 1.25rem;             /* ↔️ [ระยะการจัดตัวเว้นขอบจากช่องซ้าย-ขวา] */
+  --sidebar-logo-gap: 0.75rem;            /* 🔗 [ช่องว่างระหว่างไอคอนตัวหนังสือโลโก้] */
+
+  /* 3. [TOPBAR_HEADER] แถบเมนูด้านบนสุดของระบบ (Topbar) */
+  --topbar-mt: 1rem;                      /* ↕️ [ระยะขอบเว้นด้านบนเหนือแถบ Topbar] */
+  --topbar-h: 70px;                       /* ↕️ [ขนาดความสูงแถบส่วนหัวบนสุด Topbar] */
+  --topbar-px: 2rem;                      /* ↔️ [ระยะขอบเว้นด้านซ้ายและขวาแถบ Topbar] */
+  --topbar-gap: 0.5rem;                     /* 🔗 [ระยะห่างระหว่างกลุ่มปุ่มและโปรไฟล์ย่อย] */
+
+  /* 4. [GREETING_MORNING] พื้นที่ทักทายตอนเช้าหน้าแรก Dashboard */
+  --greeting-mt: 1.5rem;                  /* ↕️ [ระยะขอบจากด้านบนของหัวข้อทักทาย] */
+  --greeting-mb: 1.25rem;                 /* ↕️ [ระยะห่างจากด้านล่างของตัวคำทักทาย] */
+  --greeting-gap: 0.5rem;                 /* 🔗 [ระยะห่างระหว่างหัวข้อใหญ่และคำโปรยด้านล่าง] */
+
+  /* 5. [HERO_BANNER] แถบแบนเนอร์สรุปต้อนรับในหน้าแรกแบล็กกราวด์ */
+  --hero-py: 2.25rem;                     /* ↕️ [ระยะเว้นขอบจากเนื้อหาด้านบนและล่าง] */
+  --hero-px: 2.5rem;                      /* ↔️ [ระยะผูกข้อความและขอบรูปภาพจากซ้าย-ขวา] */
+  --hero-gap: 0.75rem;                    /* 🔗 [ความห่างแกนร่วมระหว่างประโยคพาดหัว] */
+
+  /* 6. [PAGE_HEADER] ส่วนของแถวหัวเรื่องและปุ่มสั่งการหัวหน้า (Page Header row ใน sub-pages) */
+  --page-header-h: 56px;                  /* ↕️ [ความสูงของโครงสร้าง Page Header h-14] */
+  --page-header-px: 2rem;                 /* ↔️ [ระยะขอบเว้นซ้าย-ขวาของหัวเรื่อง px-8] */
+  --page-header-gap: 1rem;                /* 🔗 [ช่องว่างระหว่าง Title โลโก้และแถบปุ่มขวา] */
+
+
+  /* ==========================================================================
+     [SECTION B: CORE SYSTEM INFRASTRUCTURE SPACINGS]
+     ส่วนที่ 2: ระยะกรอบ ยุทธศาสตร์ และรายละเอียดข้อมูลตารางการประมวลผล
+     ========================================================================== */
+
+  /* 7. [SYSTEM_SIDEBAR] แถบแถวและเมนูนำทาง (Sidebar Navigation Slots) */
+  --sidebar-w: 280px;                     /* ↔️ [ขนาดความกว้างเมนูด้านซ้ายเมื่อกางออก] */
+  --sidebar-collapsed-w: 80px;            /* ↔️ [ขนาดความกว้างซ้ายมือเมื่อย่อตัวเล็ก] */
+  --sidebar-cat-mt: 1.5rem;               /* ↕️ [ความห่างก่อนเริ่มชื่อหมวดหมู่กลุ่มหัวข้อ] */
+  --sidebar-cat-mb: 0.5rem;               /* ↕️ [ความชันช่องวางใต้ชื่อหัวข้อเมนูหมวดใหญ่] */
+  --sidebar-cat-px: 1.25rem;              /* ↔️ [ระยะบีบขอบข้อหมวดหมู่ข้างใน Sidebar] */
+  --sidebar-item-py: 0.625rem;            /* ↕️ [ระยะความสูงขอบบนล่างตัวเลือกเมนู py-2.5] */
+  --sidebar-item-px: 1.25rem;             /* ↔️ [ระยะเว้นขอบย่อยเนื้อความซ้ายขวา px-5] */
+  --sidebar-item-gap: 0.75rem;            /* 🔗 [ความเว้นห่างสัญลักษณ์ไอคอนและชื่อเมนู] */
+
+  /* 8. [SYSTEM_DATA_TABLES] การจัดคิวและการเว้นห่างในหน้าข้อมูลตาราง (Data Tables Cells) */
+  --table-toolbar-py: 1rem;               /* ↕️ [ความกว้างขอบ Toolbar บนล่าง py-4] */
+  --table-toolbar-px: 2rem;               /* ↔️ [ระยะบีบขอบอินพุตกรองข้อมูลซ้ายขวา px-8] */
+  --table-header-py: 1rem;                /* ↕️ [ระยะความหนาช่องตารางหัวตารางแกนดิ่ง py-4] */
+  --table-row-py: 0.625rem;               /* ↕️ [ระยะความกว้างแถวตารางข้อมูลทั่วไป py-2.5] */
+  --table-row-px: 1rem;                   /* ↔️ [ระยะห่างแต่ละช่องเซลล์แนวนอน px-4] */
+  --table-row-gap: 0.25rem;               /* 🔗 [ช่องว่างระหว่างไอคอนเช็คบ็อกซ์ปุ่มกดย่อย] */
+  --table-action-size: 32px;              /* 🪙 [ความกว้าง/สูงกล่องปุ่มสำหรับจัดการไอคอน w-8 h-8] */
+
+  /* 9. [SYSTEM_CONTAINERS] กรอบกล่องและโครงร่างหน้าต่างซอฟต์แวร์ย่อย (Containers Panels) */
+  --container-px: 2rem;                   /* ↔️ [ระยะเว้นขอบหน้าหลักซ้ายขวาอย่างเคร่งครัด sm:px-8] */
+  --container-px-mobile: 1rem;            /* ↔️ [ระยะขอบช่องว่างหน้าจอโทรศัพท์สเกลเล็ก px-4] */
+  --container-space-y: 1rem;              /* ↕️ [ช่องไฟห่างแนวดิ่งระหว่างแผงบอร์ดซอฟต์แวร์] */
+  --container-inner-p: 1.5rem;            /* 🧱 [ระยะขอบในของกล่องเนื้อหาการ์ดสีขาวทั่วไป p-6] */
+
+  /* 10. [SYSTEM_PAGINATION] ส่วนของแผงสลับย้ายเปลี่ยนแผงรายการหน้าแสดงผลด้านหลังสุด (Table Pagination) */
+  --pagination-py: 0.75rem;               /* ↕️ [ความหนาแบนเนอร์แบ่งหน้า Pagination py-3] */
+  --pagination-px: 1.5rem;                /* ↔️ [ระยะเว้นกรอบสวิตช์หน้าตารางแนวนอน px-6] */
+  --pagination-gap: 0.25rem;              /* 🔗 [ระยะห่างแต่ละช่องเลขกดหน้าแกนร่วม gap-1] */
+
+  /* 11. [SYSTEM_KPI_CARDS] การ์ดแสดงผลรวมแผงความคืบหน้าภาพรวม (KPI Grid Blocks) */
+  --kpi-card-p: 1.25rem;                  /* 🧱 [ระยะขอบข้างในตัวบอร์ดสถิติป้าย KPI ดำเนินการ] */
+  --kpi-grid-gap: 1rem;                   /* 🔗 [ระยะความห่างฟันฉลามของการ์ด KPI แต่ละใบ gap-4] */
+  --kpi-icon-size: 50px;                  /* 🪙 [ขนาดกล่องโครงแผงลอยไอคอน KPI สัญกรณ์กลม] */
+
+  /* 12. [SYSTEM_MODALS_DIALOGS] แผ่นหน้าต่างป๊อปอัปขยับเลื่อนได้ และกล่องตอบรับข้อตกลง (Floating Modals) */
+  --modal-px: 2rem;                       /* ↔️ [ระยะห่างแนวข้างส่วนหัวกระดาษป๊อปอัป px-8] */
+  --modal-py: 1.5rem;                     /* ↕️ [ความโปร่งหัวกระดาษรวมส่วนล่างป๊อปอัป py-6] */
+  --modal-gap: 1rem;                      /* 🔗 [ระยะบำรุงระยะช่องกรอกฟอร์มข้อมูลในโมดอล] */
+  --modal-inner-gap: 0.75rem;             /* 🔗 [ความระทึกระหว่างลาเบลคำขอและช่องฟิลด์อินพุต] */
+
+  /* 13. [HOME_SUB_ELEMENTS] ระยะรายละเอียดย่อยจำเพาะบนหน้า Dashboard หลัก (Home Sub-elements Spacings) */
+  --home-btn-gap: 0.75rem;                /* 🔗 [ระยะห่างระหว่างปุ่ม Directory และ Leave หน้าแรก gap-3] */
+  --home-grid-gap: 1.25rem;               /* 🔗 [ระยะห่านแต่ละช่องกริดฟันฉลากล่องข้อมูลหน้าแรก gap-5] */
+  --hero-banner-mt: 0.25rem;              /* ↕️ [ความชันด้านบนของแบนเนอร์กับคำทักทาย] */
+  --hero-banner-mb: 0.25rem;              /* ↕️ [ความห่างด้านล่างของแบนเนอร์กับการ์ด Metric] */
+
+  /* 14. [SYSTEM_FOOTER] & [CAROUSEL_ANNOUNCEMENTS] แถบข้อความด้านล่างสุดของระบบ และ Carousel ประกาศข่าว */
+  --footer-sys-pt: 2rem;                  /* ↕️ [ระยะขอบด้านบนของ Footer] */
+  --footer-sys-pb: 0.875rem;              /* ↕️ [ระยะขอบด้านล่างของ Footer] */
+  --carousel-card-py: 1.25rem;            /* ↕️ [ระยะขอบบนล่างด้านในของ Carousel ประกาศข่าว] */
+}
+
+
+/* ==========================================================================
+   EXCLUSIVE BRAND SPACING CLASSES & BEHAVIOR MAPPINGS
+   แมปอินเทอร์เฟซเข้ากับสไตล์จริง เพื่อรักษาคุณลักษณะการปรับจูนระยะห่างตัวแปรให้ยืดหยุ่นในไฟล์เดียว
+   ========================================================================== */
+
+/* 1. LOGIN SYSTEM */
+.login-card-container {
+  padding-left: var(--login-sys-px) !important;
+  padding-right: var(--login-sys-px) !important;
+  padding-top: var(--login-sys-py) !important;
+  padding-bottom: var(--login-sys-py) !important;
+  display: flex !important;
+  flex-direction: column !important;
+  gap: var(--login-sys-gap) !important;
+}
+.login-logo-box {
+  width: var(--login-logo-size) !important;
+  height: var(--login-logo-size) !important;
+}
+
+/* 2. SIDEBAR HEADER LOGO */
+.sidebar-logo-header {
+  height: var(--sidebar-logo-h) !important;
+  padding-left: var(--sidebar-logo-px) !important;
+  padding-right: var(--sidebar-logo-px) !important;
+  display: flex !important;
+  align-items: center !important;
+  gap: var(--sidebar-logo-gap) !important;
+}
+
+/* 3. TOPBAR HEADER */
+.topbar-header-container {
+  margin-top: var(--topbar-mt) !important;
+  height: var(--topbar-h) !important;
+  padding-left: var(--topbar-px) !important;
+  padding-right: var(--topbar-px) !important;
+  display: flex !important;
+  align-items: center !important;
+  gap: var(--topbar-gap) !important;
+}
+
+/* 4. GREETING MORNING BLOCK */
+.greeting-morning-block {
+  margin-top: var(--greeting-mt) !important;
+  margin-bottom: var(--greeting-mb) !important;
+  display: flex !important;
+  flex-direction: column !important;
+  gap: var(--greeting-gap) !important;
+}
+
+/* 5. HERO BANNER CARD */
+.hero-banner-card {
+  padding-top: var(--hero-py) !important;
+  padding-bottom: var(--hero-py) !important;
+  padding-left: var(--hero-px) !important;
+  padding-right: var(--hero-px) !important;
+  gap: var(--hero-gap) !important;
+}
+
+/* 6. PAGE HEADER COMPONENT (STANDARD) */
+.page-header-standard-row {
+  height: var(--page-header-h) !important;
+  padding-left: var(--page-header-px) !important;
+  padding-right: var(--page-header-px) !important;
+  display: flex !important;
+  flex-direction: row !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+  gap: var(--page-header-gap) !important;
+}
+
+/* 7. SIDEBAR SLOTS AND ITEMS */
+.sidebar-panel-container {
+  width: var(--sidebar-w) !important;
+}
+.sidebar-panel-container.collapsed {
+  width: var(--sidebar-collapsed-w) !important;
+}
+.sidebar-category-header {
+  margin-top: var(--sidebar-cat-mt) !important;
+  margin-bottom: var(--sidebar-cat-mb) !important;
+  padding-left: var(--sidebar-cat-px) !important;
+  padding-right: var(--sidebar-cat-px) !important;
+}
+.sidebar-menu-item-row {
+  padding-top: var(--sidebar-item-py) !important;
+  padding-bottom: var(--sidebar-item-py) !important;
+  padding-left: var(--sidebar-item-px) !important;
+  padding-right: var(--sidebar-item-px) !important;
+  display: flex !important;
+  align-items: center !important;
+  gap: var(--sidebar-item-gap) !important;
+}
+
+/* 8. SYSTEM DATA TABLES ELEMENTS */
+.table-toolbar-header {
+  padding-top: var(--table-toolbar-py) !important;
+  padding-bottom: var(--table-toolbar-py) !important;
+  padding-left: var(--table-toolbar-px) !important;
+  padding-right: var(--table-toolbar-px) !important;
+}
+.table-header-cell-row {
+  padding-top: var(--table-header-py) !important;
+  padding-bottom: var(--table-header-py) !important;
+}
+.table-data-cell-row {
+  padding-top: var(--table-row-py) !important;
+  padding-bottom: var(--table-row-py) !important;
+  padding-left: var(--table-row-px) !important;
+  padding-right: var(--table-row-px) !important;
+}
+.table-action-button-square {
+  width: var(--table-action-size) !important;
+  height: var(--table-action-size) !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+}
+
+/* 9. SYSTEM CONTAINERS */
+.main-page-container {
+  display: flex !important;
+  flex-direction: column !important;
+  width: 100% !important;
+  flex-grow: 1 !important;
+}
+.main-page-container.space-gap-active > *,
+.main-page-container > .space-gap-active {
+  margin-bottom: var(--container-space-y) !important;
+}
+.content-section-exact {
+  width: 100% !important;
+  padding-left: var(--container-px-mobile) !important;
+  padding-right: var(--container-px-mobile) !important;
+  display: flex !important;
+  flex-direction: column !important;
+  flex-grow: 1 !important;
+}
+@media (min-width: 640px) {
+  .content-section-exact {
+    padding-left: var(--container-px) !important;
+    padding-right: var(--container-px) !important;
+  }
+}
+.card-inner-pushed {
+  padding: var(--container-inner-p) !important;
+}
+
+/* 10. SYSTEM PAGINATION SLIDER */
+.table-pagination-footer-banner {
+  padding-top: var(--pagination-py) !important;
+  padding-bottom: var(--pagination-py) !important;
+  padding-left: var(--pagination-px) !important;
+  padding-right: var(--pagination-px) !important;
+  display: flex !important;
+  justify-content: space-between !important;
+  align-items: center !important;
+}
+.table-pagination-numbers-cluster {
+  display: flex !important;
+  align-items: center !important;
+  gap: var(--pagination-gap) !important;
+}
+
+/* 11. SYSTEM KPI CARDS BLOCKS */
+.kpi-card-interactive-p {
+  padding: var(--kpi-card-p) !important;
+}
+.kpi-grid-container-fluid {
+  display: grid !important;
+  grid-template-cols: repeat(1, minmax(0, 1fr)) !important;
+  gap: var(--kpi-grid-gap) !important;
+}
+@media (min-width: 640px) {
+  .kpi-grid-container-fluid {
+    grid-template-cols: repeat(2, minmax(0, 1fr)) !important;
+  }
+}
+@media (min-width: 1024px) {
+  .kpi-grid-container-fluid {
+    grid-template-cols: repeat(4, minmax(0, 1fr)) !important;
+  }
+}
+
+/* 12. SYSTEM MODALS DIALOGS */
+.modal-draggable-card-p {
+  padding-left: var(--modal-px) !important;
+  padding-right: var(--modal-px) !important;
+  padding-top: var(--modal-py) !important;
+  padding-bottom: var(--modal-py) !important;
+  display: flex !important;
+  flex-direction: column !important;
+  gap: var(--modal-gap) !important;
+}
+.modal-form-row-flexible {
+  display: flex !important;
+  flex-direction: column !important;
+  gap: var(--modal-inner-gap) !important;
+}
+
+/* 13. HOME SUB_ELEMENTS MAPPINGS */
+.home-buttons-row {
+  display: flex !important;
+  flex-direction: row !important;
+  gap: var(--home-btn-gap) !important;
+}
+.detail-grid-container {
+  display: grid !important;
+  gap: var(--home-grid-gap) !important;
+}
+.hero-banner-spacing-block {
+  margin-top: var(--hero-banner-mt) !important;
+  margin-bottom: var(--hero-banner-mb) !important;
+}
+
+
+/* 14. FOOTER AND CAROUSEL ANNOUNCEMENTS */
+.system-footer-container {
+  padding-top: var(--footer-sys-pt) !important;
+  padding-bottom: var(--footer-sys-pb) !important;
+}
+.carousel-container-p {
+  padding-top: var(--carousel-card-py) !important;
+  padding-bottom: var(--carousel-card-py) !important;
+}
+
+/* ==========================================================================
+   [SECTION C: VISUAL DEBUGGER OVERLAYS]
+   เส้นโยงและคำอธิบายชี้พิกัดแสดงผล (Debug Border Overlays & Tooltips)
+   เมื่อร่างคลาส .visual-debug-active ถูกเปิดใช้งานโดยคลิกปุ่มแมลงเต่าทอง 🐞
+   ========================================================================== */
+
+/* เคลียร์ระดับพื้นฐานและขีดจำกัดเบื้องต้น */
+.visual-debug-active * {
+  outline: 1px dashed rgba(255, 0, 0, 0.05) !important;
+}
+
+/* ป้องกันตัวบ่งชี้พิกัดและเส้นส่องหลุดจอบิดเบี้ยว หรือถูก Clip โดย parent container */
+.visual-debug-active .main-page-container,
+.visual-debug-active .content-section-exact,
+.visual-debug-active .sidebar-panel-container,
+.visual-debug-active .topbar-header-container,
+.visual-debug-active .page-header-standard-row,
+.visual-debug-active .table-toolbar-header,
+.visual-debug-active .kpi-card-interactive-p,
+.visual-debug-active .table-pagination-footer-banner,
+.visual-debug-active .modal-draggable-card-p,
+.visual-debug-active .greeting-morning-block,
+.visual-debug-active .home-buttons-row,
+.visual-debug-active .detail-grid-container,
+.visual-debug-active .hero-banner-spacing-block,
+.visual-debug-active .system-footer-container,
+.visual-debug-active .carousel-container-p {
+  overflow: visible !important;
+}
+
+/* สไตล์พื้นฐานร่วมของแถบตัวแปร ชี้พิกัดโครงสร้างระบบ (Unified Tooltip Badge CSS) */
+/* By default, we keep them highly translucent (faint outline layout overlay) and non-blocking, so they never cover texts! */
+.visual-debug-active .sidebar-panel-container::before,
+.visual-debug-active .topbar-header-container::before,
+.visual-debug-active .page-header-standard-row::before,
+.visual-debug-active .content-section-exact::before,
+.visual-debug-active .kpi-card-interactive-p::before,
+.visual-debug-active .table-toolbar-header::before,
+.visual-debug-active tbody tr:hover::after,
+.visual-debug-active .table-pagination-footer-banner::before,
+.visual-debug-active .modal-draggable-card-p::before,
+.visual-debug-active .greeting-morning-block::before,
+.visual-debug-active .home-buttons-row::before,
+.visual-debug-active .detail-grid-container::before,
+.visual-debug-active .hero-banner-spacing-block::before,
+.visual-debug-active .system-footer-container::before,
+.visual-debug-active .carousel-container-p::before {
+  position: absolute !important;
+  white-space: nowrap !important;
+  pointer-events: none !important;
+  font-family: "JetBrains Mono", "Courier New", monospace !important;
+  font-size: 8.5px !important;
+  font-weight: 800 !important;
+  padding: 2.5px 6px !important;
+  border-radius: 4px !important;
+  z-index: 100000 !important;
+  line-height: 1.1 !important;
+  height: auto !important;
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.2) !important;
+  border: 1px solid rgba(255, 255, 255, 0.15) !important;
+  opacity: 0.15 !important;
+  transition: opacity 0.25s cubic-bezier(0.16, 1, 0.3, 1), transform 0.25s cubic-bezier(0.16, 1, 0.3, 1) !important;
+}
+
+/* When the user explicitly HOVERS over any card/layer in debug mode, it animates to full solid opacity with scale-up for perfect readability! */
+.visual-debug-active .sidebar-panel-container:hover::before,
+.visual-debug-active .topbar-header-container:hover::before,
+.visual-debug-active .page-header-standard-row:hover::before,
+.visual-debug-active .content-section-exact:hover::before,
+.visual-debug-active .kpi-card-interactive-p:hover::before,
+.visual-debug-active .table-toolbar-header:hover::before,
+.visual-debug-active tbody tr:hover::after,
+.visual-debug-active .table-pagination-footer-banner:hover::before,
+.visual-debug-active .modal-draggable-card-p:hover::before,
+.visual-debug-active .greeting-morning-block:hover::before,
+.visual-debug-active .home-buttons-row:hover::before,
+.visual-debug-active .detail-grid-container:hover::before,
+.visual-debug-active .hero-banner-spacing-block:hover::before,
+.visual-debug-active .system-footer-container:hover::before,
+.visual-debug-active .carousel-container-p:hover::before {
+  opacity: 1.0 !important;
+  z-index: 100005 !important;
+  transform: scale(1.02) !important;
+}
+
+/* 1. โครงสร้าง Layout ด้านซ้าย-ขวา (Red-color lines: สื่อสาร "โครงภายนอก - External Containers & Heights & Navs") */
+.visual-debug-active .sidebar-panel-container {
+  outline: 2px solid #ef4444 !important;
+  outline-offset: -1px;
+  position: relative !important;
+}
+.visual-debug-active .sidebar-panel-container::before {
+  content: "CONTAINER [7] SIDEBAR width: var(--sidebar-w)" !important;
+  bottom: 8px !important;
+  left: 8px !important;
+  background: #db2777 !important;
+  color: white !important;
+}
+
+/* 2. Topbar Header */
+.visual-debug-active .topbar-header-container,
+.visual-debug-active header:not([class*="-desc"]) {
+  outline: 2px solid #dc2626 !important;
+  outline-offset: -2px;
+  position: relative !important;
+}
+.visual-debug-active .topbar-header-container::before {
+  content: "LAYOUT [3] TOPBAR height: var(--topbar-h)" !important;
+  top: 4px !important;
+  left: 12px !important;
+  background: #dc2626 !important;
+  color: #ffffff !important;
+}
+
+/* 3. Page Header (เช่น h-14 px-8) */
+.visual-debug-active .page-header-standard-row,
+.visual-debug-active [class*="h-14"][class*="px-"] {
+  outline: 2px solid #ef4444 !important;
+  outline-offset: -2px;
+  position: relative !important;
+  background: rgba(239, 68, 68, 0.05) !important;
+}
+.visual-debug-active .page-header-standard-row::before,
+.visual-debug-active [class*="h-14"][class*="px-"]::before {
+  content: "LAYOUT [6] PAGE_HEADER height: var(--page-header-h) px: var(--page-header-px)" !important;
+  top: 4px !important;
+  left: 14px !important;
+  background: #ef4444 !important;
+  color: white !important;
+}
+
+/* 4. Content Section Outer Boundaries */
+.visual-debug-active .content-section-exact {
+  outline: 2px solid #b91c1c !important;
+  outline-offset: -3px;
+  position: relative !important;
+}
+.visual-debug-active .content-section-exact::before {
+  content: "CONTAINER [9] CONTENT BOUNDS px: var(--container-px)" !important;
+  top: 4px !important;
+  right: 14px !important;
+  background: #b91c1c !important;
+  color: white !important;
+}
+
+
+/* 5. ส่วนของรายละเอียดเนื้อหาภายใน (Blue-color lines: สื่อสาร "ส่วนเว้นย่อยเนื้อใน - Local Paddings & Elements & Gaps") */
+
+/* KPI Cards */
+.visual-debug-active .kpi-card-interactive-p,
+.visual-debug-active [class*="kpi-card"],
+.visual-debug-active [id*="kpi-"] {
+  outline: 2px solid #3b82f6 !important;
+  outline-offset: -1px;
+  position: relative !important;
+  background: rgba(59, 130, 246, 0.03) !important;
+}
+.visual-debug-active .kpi-card-interactive-p::before,
+.visual-debug-active [class*="kpi-card"]::before {
+  content: "CARD [11] KPI p: var(--kpi-card-p)" !important;
+  bottom: 4px !important;
+  right: 4px !important;
+  background: #3b82f6 !important;
+  color: white !important;
+}
+
+/* data table wrapper */
+.visual-debug-active .bg-white.rounded-3xl.shadow-lg,
+.visual-debug-active table {
+  outline: 2px solid #2563eb !important;
+  position: relative !important;
+}
+
+/* table toolbar info */
+.visual-debug-active .table-toolbar-header,
+.visual-debug-active [class*="py-4"][class*="px-8"]:not([class*="h-14"]) {
+  outline: 2px dashed #1d4ed8 !important;
+  outline-offset: -2px;
+  position: relative !important;
+  background: rgba(37, 99, 235, 0.04) !important;
+}
+.visual-debug-active .table-toolbar-header::before,
+.visual-debug-active [class*="py-4"][class*="px-8"]:not([class*="h-14"])::before {
+  content: "TOOLBAR [8] py: var(--table-toolbar-py) px: var(--table-toolbar-px)" !important;
+  top: 4px !important;
+  right: 14px !important;
+  background: #1d4ed8 !important;
+  color: white !important;
+}
+
+/* table header row info */
+.visual-debug-active thead tr,
+.visual-debug-active .table-header-cell-row {
+  outline: 1.5px dashed #0c4a6e !important;
+  position: relative !important;
+  background: rgba(12, 74, 110, 0.05) !important;
+}
+
+/* table body row info */
+.visual-debug-active tbody tr,
+.visual-debug-active .table-data-cell-row {
+  outline: 1.5px solid #2563eb !important;
+  outline-offset: -1px;
+  position: relative !important;
+}
+.visual-debug-active tbody tr:hover::after,
+.visual-debug-active .table-data-cell-row:hover::after {
+  content: "ROW [8] DATA CELL py: var(--table-row-py) px: var(--table-row-px)" !important;
+  right: 8px !important;
+  top: 50% !important;
+  transform: translateY(-50%) !important;
+  background: #2563eb !important;
+  color: white !important;
+}
+
+/* Action operations */
+.visual-debug-active .table-action-button-square,
+.visual-debug-active [class*="w-8 h-8"] {
+  outline: 1.5px solid #10b981 !important;
+  position: relative !important;
+}
+
+/* Pagination info */
+.visual-debug-active .table-pagination-footer-banner,
+.visual-debug-active [class*="bg-[#F0EAE1]"],
+.visual-debug-active [class*="border-t-"][class*="py-3"] {
+  outline: 2px solid #0369a1 !important;
+  outline-offset: -2px;
+  position: relative !important;
+  background: rgba(3, 105, 161, 0.08) !important;
+}
+.visual-debug-active .table-pagination-footer-banner::before,
+.visual-debug-active [class*="border-t-"][class*="py-3"]::before {
+  content: "PAGINATION [10] py: var(--pagination-py) px: var(--pagination-px)" !important;
+  bottom: 4px !important;
+  left: 14px !important;
+  background: #0369a1 !important;
+  color: white !important;
+}
+
+/* Modals / Dialogs info */
+.visual-debug-active .modal-draggable-card-p,
+.visual-debug-active [class*="react-draggable"] > [class*="bg-white"] {
+  outline: 3px double #d97706 !important;
+  position: relative !important;
+  background: rgba(217, 119, 6, 0.02) !important;
+}
+.visual-debug-active .modal-draggable-card-p::before {
+  content: "MODAL [12] DIALOG px: var(--modal-px) py: var(--modal-py)" !important;
+  top: 4px !important;
+  right: 48px !important;
+  background: #d97706 !important;
+  color: white !important;
+}
+
+
+/* 6. ส่วนการตั้งค่าจุดย่อยๆ ของหน้า HOME (Green & Indigo & Purple & Pink overlays) */
+
+/* GREETING BLOCK */
+.visual-debug-active .greeting-morning-block {
+  outline: 2px dashed #10b981 !important;
+  outline-offset: -1px;
+  position: relative !important;
+  background: rgba(16, 185, 129, 0.04) !important;
+}
+.visual-debug-active .greeting-morning-block::before {
+  content: "GREETING [4] mt: var(--greeting-mt) mb: var(--greeting-mb) gap: var(--greeting-gap)" !important;
+  top: 4px !important;
+  left: 6px !important;
+  background: #10b981 !important;
+  color: white !important;
+}
+
+/* HOME BUTTONS ROW */
+.visual-debug-active .home-buttons-row {
+  outline: 2px solid #6366f1 !important;
+  outline-offset: -1px;
+  position: relative !important;
+  background: rgba(99, 102, 241, 0.04) !important;
+}
+.visual-debug-active .home-buttons-row::before {
+  content: "BUTTONS ROW [13] gap: var(--home-btn-gap)" !important;
+  top: -24px !important;
+  right: 4px !important;
+  background: #6366f1 !important;
+  color: white !important;
+}
+
+/* HERO BANNER SPACING BLOCK */
+.visual-debug-active .hero-banner-spacing-block {
+  outline: 2px solid #ec4899 !important;
+  outline-offset: -1px;
+  position: relative !important;
+}
+.visual-debug-active .hero-banner-spacing-block::before {
+  content: "HERO BANNER SPACING [13] mt: var(--hero-banner-mt) mb: var(--hero-banner-mb)" !important;
+  top: 4px !important;
+  left: 8px !important;
+  background: #ec4899 !important;
+  color: white !important;
+}
+
+/* DETAIL GRID CONTAINER */
+.visual-debug-active .detail-grid-container {
+  outline: 2px dashed #8b5cf6 !important;
+  outline-offset: -1px;
+  position: relative !important;
+  background: rgba(139, 92, 246, 0.02) !important;
+}
+.visual-debug-active .detail-grid-container::before {
+  content: "GRID LAUNCHER [13] gap: var(--home-grid-gap)" !important;
+  top: 4px !important;
+  right: 8px !important;
+  background: #8b5cf6 !important;
+  color: white !important;
+}
+
+/* 14. FOOTER & CAROUSEL CARDS */
+.visual-debug-active .system-footer-container {
+  outline: 2px dashed #14b8a6 !important;
+  outline-offset: -1px;
+  position: relative !important;
+  background: rgba(20, 184, 166, 0.02) !important;
+}
+.visual-debug-active .system-footer-container::before {
+  content: "FOOTER [14] pt: var(--footer-sys-pt) pb: var(--footer-sys-pb)" !important;
+  top: 4px !important;
+  right: 12px !important;
+  background: #14b8a6 !important;
+  color: white !important;
+}
+
+.visual-debug-active .carousel-container-p {
+  outline: 2px dashed #06b6d4 !important;
+  outline-offset: -2px;
+  position: relative !important;
+}
+.visual-debug-active .carousel-container-p::before {
+  content: "CAROUSEL [14] py: var(--carousel-card-py)" !important;
+  bottom: 8px !important;
+  left: 8px !important;
+  background: #06b6d4 !important;
+  color: white !important;
+}

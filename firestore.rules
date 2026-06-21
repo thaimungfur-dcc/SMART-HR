@@ -1,0 +1,129 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // 1. Global Safety Net
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Collection: users
+    match /users/{userId} {
+      allow read, write: if true;
+    }
+
+    // Collection: calendar_events
+    match /calendar_events/{eventId} {
+      allow read, write: if true;
+    }
+
+    // Collection: system_logs
+    match /system_logs/{logId} {
+      allow read, write: if true;
+    }
+
+    // Collection: system_config
+    match /system_config/{configId} {
+      allow read, write: if true;
+    }
+
+    // Collection: employees
+    match /employees/{employeeId} {
+      allow read, write: if true;
+    }
+
+    // Collection: leave_requests
+    match /leave_requests/{requestId} {
+      allow read, write: if true;
+    }
+
+    // Collection: appraisals
+    match /appraisals/{appraisalId} {
+      allow read, write: if true;
+    }
+
+    // Collection: Attendance
+    match /Attendance/{logId} {
+      allow read, write: if true;
+    }
+
+    // Collection: WeeklyShifts
+    match /WeeklyShifts/{shiftId} {
+      allow read, write: if true;
+    }
+
+    // Collection: RawScannerLogs
+    match /RawScannerLogs/{logId} {
+      allow read, write: if true;
+    }
+
+    // Collection: company_holidays
+    match /company_holidays/{holidayId} {
+      allow read, write: if true;
+    }
+
+    // Collection: CorporateNews
+    match /CorporateNews/{newsId} {
+      allow read, write: if true;
+    }
+
+    // Collection: CorporateAlerts
+    match /CorporateAlerts/{alertId} {
+      allow read, write: if true;
+    }
+
+    // Collection: candidates
+    match /candidates/{candidateId} {
+      allow read, write: if true;
+    }
+
+    // Collection: manpower_requests
+    match /manpower_requests/{requestId} {
+      allow read, write: if true;
+    }
+
+    // Collection: job_openings
+    match /job_openings/{openingId} {
+      allow read, write: if true;
+    }
+
+    // Collection: interview_feedbacks
+    match /interview_feedbacks/{feedbackId} {
+      allow read, write: if true;
+    }
+
+    // Collection: interview_schedules
+    match /interview_schedules/{scheduleId} {
+      allow read, write: if true;
+    }
+
+    // Collection: jd_repository
+    match /jd_repository/{jdId} {
+      allow read, write: if true;
+    }
+
+    // Collection: skill_matrix
+    match /skill_matrix/{skillId} {
+      allow read, write: if true;
+    }
+
+    // Collection: career_paths
+    match /career_paths/{pathId} {
+      allow read, write: if true;
+    }
+
+    // Collection: succession_plans
+    match /succession_plans/{planId} {
+      allow read, write: if true;
+    }
+
+    // Collection: salary_master
+    match /salary_master/{id} {
+      allow read, write: if true;
+    }
+
+    // Collection: system_exports_audit
+    match /system_exports_audit/{id} {
+      allow read, write: if true;
+    }
+  }
+}

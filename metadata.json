@@ -1,0 +1,10 @@
+{
+  "name": "SMART HR V1.0 -- ThaiMung",
+  "description": "ระบบบริหารจัดการงานบุคคล อัจฉริยะ (Cloned from GitHub)",
+  "requestFramePermissions": [
+    "camera"
+  ],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}
