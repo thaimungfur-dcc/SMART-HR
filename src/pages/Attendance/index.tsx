@@ -34,7 +34,10 @@ import {
   Info,
   HelpCircle,
   ArrowUpDown,
-  Database
+  Database,
+  Printer,
+  Layers,
+  UserCheck
 } from 'lucide-react';
 import { 
   BarChart, 
@@ -134,18 +137,26 @@ export default function Attendance() {
   const { user } = useAuth();
   
   // Sub-Navigation Tabs
-  const [activeSubTab, setActiveSubTab] = useState<'clock' | 'rawScanner'>('clock');
+  const [activeSubTab, setActiveSubTab] = useState<'clock' | 'rawScanner' | 'incompleteReport'>('clock');
   const [rawScannerLogs, setRawScannerLogs] = useState<any[]>([]);
   const [rawSearchName, setRawSearchName] = useState<string>('');
   const [rawSearchDate, setRawSearchDate] = useState<string>('');
   const [rawSearchDept, setRawSearchDept] = useState<string>('All');
   const [rawSearchStatus, setRawSearchStatus] = useState<string>('All');
   const [selectedRawLogIds, setSelectedRawLogIds] = useState<string[]>([]);
+  const [selectedAttLogIds, setSelectedAttLogIds] = useState<string[]>([]);
   const [rawLogsPage, setRawLogsPage] = useState<number>(1);
   const rawLogsPerPage = 50;
   const [isAttendancePrintOpen, setIsAttendancePrintOpen] = useState(false);
   const [isAttendanceLedgerOpen, setIsAttendanceLedgerOpen] = useState(false);
   const [isGuideOpen, setGuideOpen] = useState(false);
+
+  // States for Incomplete Scans Report
+  const [selectedIncompleteLogIds, setSelectedIncompleteLogIds] = useState<string[]>([]);
+  const [incompleteSearchDept, setIncompleteSearchDept] = useState<string>('All');
+  const [incompleteSearchDate, setIncompleteSearchDate] = useState<string>('');
+  const [isIncompletePrintOpen, setIsIncompletePrintOpen] = useState<boolean>(false);
+  const [isIncompleteSummaryPrintOpen, setIsIncompleteSummaryPrintOpen] = useState<boolean>(false);
 
   // States
   const [employees, setEmployees] = useState<any[]>([]);
@@ -365,6 +376,47 @@ export default function Attendance() {
     } catch (err) {
       console.error(err);
       MySwal.fire('ล้มเหลว', 'เกิดข้อผิดพลาดในการลบข้อมูลดิบ', 'error');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleDeleteAttendanceLogs = async (idsToDelete: string[]) => {
+    if (idsToDelete.length === 0) return;
+    
+    const confirm = await MySwal.fire({
+      title: idsToDelete.length === 1 ? 'ต้องการลบข้อมูลเข้างานรายการนี้?' : `ต้องการลบข้อมูลเข้างาน ${idsToDelete.length} รายการ?`,
+      text: 'เมื่อทำการลบแล้วข้อมูลนี้จะไม่แสดงผลในระบบและไม่คงประวัติหลัก',
+      icon: 'warning',
+      showCancelButton: true,
+      confirmButtonText: 'ลบข้อมูล',
+      cancelButtonText: 'ยกเลิก',
+      confirmButtonColor: '#be123c',
+      cancelButtonColor: '#7a8b95'
+    });
+    
+    if (!confirm.isConfirmed) return;
+    
+    setIsLoading(true);
+    try {
+      const payload = idsToDelete.map(id => ({ id }));
+      await dbSync.delete('Attendance', payload);
+      
+      setAttendanceLogs(prev => prev.filter(x => !idsToDelete.includes(x.id)));
+      setSelectedAttLogIds(prev => prev.filter(id => !idsToDelete.includes(id)));
+      
+      MySwal.fire({
+        toast: true,
+        position: 'top-end',
+        icon: 'success',
+        title: 'ลบข้อมูลสำเร็จ! 🗑️',
+        showConfirmButton: false,
+        timer: 2000
+      });
+      await fetchAllData();
+    } catch (err) {
+      console.error("Failed to delete attendance logs:", err);
+      MySwal.fire('เกิดข้อผิดพลาด', 'ไม่สามารถลบข้อมูลจากฐานข้อมูลได้', 'error');
     } finally {
       setIsLoading(false);
     }
@@ -592,6 +644,75 @@ export default function Attendance() {
     return filteredRawLogs.slice(startIndex, startIndex + rawLogsPerPage);
   }, [filteredRawLogs, rawLogsPage]);
 
+  // Derived memoized list of Incomplete Scans Report
+  const incompleteLogsList = useMemo(() => {
+    return rawScannerLogs.filter(log => {
+      if (!log.matchedEmployeeId) return false;
+      const emp = employees.find(e => e.employeeId === log.matchedEmployeeId || e.id === log.matchedEmployeeId);
+      if (!emp) return false;
+
+      // Deciding Monthly vs Daily based on jobStatus
+      const isPermanent = emp.jobStatus === 'Permanent';
+
+      // Check how many of the 4 standard rounds are filled
+      const hasMorningIn = !!log.morningIn;
+      const hasMorningOut = !!log.morningOut;
+      const hasAfternoonIn = !!log.afternoonIn;
+      const hasAfternoonOut = !!log.afternoonOut;
+
+      const standardPunchesCount = [hasMorningIn, hasMorningOut, hasAfternoonIn, hasAfternoonOut].filter(Boolean).length;
+      
+      // Total punches count
+      const totalPunchesCount = [
+        hasMorningIn,
+        hasMorningOut,
+        hasAfternoonIn,
+        hasAfternoonOut,
+        !!log.otIn,
+        !!log.otOut,
+        !!log.checkIn,
+        !!log.checkOut
+      ].filter(Boolean).length;
+
+      // Checking total punches of any type to ensure they actually clocked in/out today
+      if (totalPunchesCount === 0) return false; // they were absent entirely
+
+      if (!isPermanent) {
+        // Daily Employees: must scan every round of the 4 standard shifts
+        return standardPunchesCount < 4;
+      } else {
+        // Monthly Employees: expected to scan exactly 2 times per day (morningIn and afternoonOut).
+        // If they have less than 2 punches, they are incomplete.
+        return totalPunchesCount < 2;
+      }
+    });
+  }, [rawScannerLogs, employees]);
+
+  const filteredIncompleteLogs = useMemo(() => {
+    return incompleteLogsList.filter(log => {
+      const emp = employees.find(e => e.employeeId === log.matchedEmployeeId || e.id === log.matchedEmployeeId);
+      const empDept = emp ? (emp.dept || emp.department || '') : (log.dept || '');
+      
+      const deptMatch = incompleteSearchDept === 'All' || empDept === incompleteSearchDept;
+      const dateMatch = !incompleteSearchDate || log.date === incompleteSearchDate;
+      
+      return deptMatch && dateMatch;
+    });
+  }, [incompleteLogsList, employees, incompleteSearchDept, incompleteSearchDate]);
+
+  const availableDepartments = useMemo(() => {
+    const depts = new Set<string>();
+    employees.forEach(emp => {
+      const d = emp.dept || emp.department;
+      if (d) depts.add(d);
+    });
+    // Add fallback scanner dept options if any
+    rawScannerLogs.forEach(log => {
+      if (log.dept) depts.add(log.dept);
+    });
+    return Array.from(depts).filter(Boolean).sort();
+  }, [employees, rawScannerLogs]);
+
   useEffect(() => {
     setRawLogsPage(1);
   }, [rawSearchName, rawSearchDate, rawSearchDept, rawSearchStatus, activeSubTab]);
@@ -792,6 +913,8 @@ export default function Attendance() {
           if (!rawName && !rawAcNo) continue;
 
           const formattedDate = parseScannerDate(rawDate, isMMDDYYYY);
+          const matchedEmployee = fastFindBestEmployee(rawName, rawAcNo);
+          const isPermanent = matchedEmployee ? matchedEmployee.jobStatus === 'Permanent' : false;
           
           let valMorningIn = '';
           let valMorningOut = '';
@@ -804,34 +927,67 @@ export default function Attendance() {
             const rawTime = rowData[indices.time].trim();
             const punches = rawTime.split(/\s+/).filter(Boolean).filter(t => timeRegex.test(t));
             
-            punches.forEach(t => {
+            const punchDetails = punches.map(t => {
               const [h, m] = t.split(':').map(Number);
               const minTotal = h * 60 + m;
-              
-              if (minTotal <= 11 * 60 + 30) {
-                 if (!valMorningIn) valMorningIn = t;
-              } else if (minTotal > 11 * 60 + 30 && minTotal <= 12 * 60 + 30) {
-                 valMorningOut = t;
-              } else if (minTotal > 12 * 60 + 30 && minTotal <= 13 * 60 + 30) {
-                 if (!valAfternoonIn) valAfternoonIn = t;
-              } else if (minTotal >= 15 * 60 && minTotal <= 17 * 60 + 30) {
-                 valAfternoonOut = t;
-              } else if (minTotal > 17 * 60 + 30 && minTotal <= 18 * 60 + 30) {
-                 if (!valOtIn) valOtIn = t;
-              } else if (minTotal > 18 * 60 + 30) {
-                 valOtOut = t;
-              }
+              return { time: t, minTotal };
             });
-            
-            // Fixes for missing punches or edge cases
+
+            // m_in: MIN(FILTER(t, t < TIME(10,0,0)))
+            const mInPunches = punchDetails.filter(p => p.minTotal < 10 * 60);
+            if (mInPunches.length > 0) {
+              mInPunches.sort((a, b) => a.minTotal - b.minTotal);
+              valMorningIn = mInPunches[0].time;
+            }
+
+            // m_out: MAX(FILTER(t, t >= TIME(10,0,0), t < TIME(12,30,0)))
+            const mOutPunches = punchDetails.filter(p => p.minTotal >= 10 * 60 && p.minTotal < 12 * 60 + 30);
+            if (mOutPunches.length > 0) {
+              mOutPunches.sort((a, b) => b.minTotal - a.minTotal);
+              valMorningOut = mOutPunches[0].time;
+            }
+
+            // a_in: MIN(FILTER(t, t >= TIME(12,30,0), t < TIME(14,0,0)))
+            const aInPunches = punchDetails.filter(p => p.minTotal >= 12 * 60 + 30 && p.minTotal < 14 * 60);
+            if (aInPunches.length > 0) {
+              aInPunches.sort((a, b) => a.minTotal - b.minTotal);
+              valAfternoonIn = aInPunches[0].time;
+            }
+
+            // a_out: MAX(FILTER(t, t >= TIME(14,0,0), t < TIME(17,30,0)))
+            const aOutPunches = punchDetails.filter(p => p.minTotal >= 14 * 60 && p.minTotal < 17 * 60 + 30);
+            if (aOutPunches.length > 0) {
+              aOutPunches.sort((a, b) => b.minTotal - a.minTotal);
+              valAfternoonOut = aOutPunches[0].time;
+            }
+
+            // ot_in: MIN(FILTER(t, t >= TIME(17,30,0), t < TIME(18,30,0)))
+            const otInPunches = punchDetails.filter(p => p.minTotal >= 17 * 60 + 30 && p.minTotal < 18 * 60 + 30);
+            if (otInPunches.length > 0) {
+              otInPunches.sort((a, b) => a.minTotal - b.minTotal);
+              valOtIn = otInPunches[0].time;
+            }
+
+            // ot_out: MAX(FILTER(t, t >= TIME(18,30,0)))
+            const otOutPunches = punchDetails.filter(p => p.minTotal >= 18 * 60 + 30);
+            if (otOutPunches.length > 0) {
+              otOutPunches.sort((a, b) => b.minTotal - a.minTotal);
+              valOtOut = otOutPunches[0].time;
+            }
+
+            // Fallback for exactly 2 punches if they weren't assigned morningIn / afternoonOut properly
             if (punches.length === 2 && !valAfternoonOut && !valMorningOut) {
-               // E.g. [07:56, 17:00]
-               const p1 = punches[0];
-               const p2 = punches[1];
-               const [h1, m1] = p1.split(':').map(Number);
-               const [h2, m2] = p2.split(':').map(Number);
-               if (h1 < 12) valMorningIn = p1;
-               if (h2 >= 16) valAfternoonOut = p2;
+              const p1 = punches[0];
+              const p2 = punches[1];
+              if (isPermanent) {
+                valMorningIn = p1;
+                valAfternoonOut = p2;
+              } else {
+                const [h1, m1] = p1.split(':').map(Number);
+                const [h2, m2] = p2.split(':').map(Number);
+                if (h1 < 12) valMorningIn = p1;
+                if (h2 >= 16) valAfternoonOut = p2;
+              }
             }
           } else {
              valMorningIn = (indices.morningIn !== -1 && rowData[indices.morningIn] ? rowData[indices.morningIn] : '').trim();
@@ -905,7 +1061,6 @@ export default function Attendance() {
             }
           }
 
-          const matchedEmployee = fastFindBestEmployee(rawName, rawAcNo);
           const matchedEmployeeId = matchedEmployee ? matchedEmployee.employeeId : '';
           const matchedEmployeeName = matchedEmployee ? matchedEmployee.name : rawName;
 
@@ -1410,6 +1565,10 @@ export default function Attendance() {
     fetchAllData();
   }, [user]);
 
+  useEffect(() => {
+    setSelectedAttLogIds([]);
+  }, [focusedEmployeeId]);
+
   // Handle focused employee info lookup
   const currentEmployeeObj = useMemo(() => {
     return employees.find(e => e.employeeId === focusedEmployeeId || e.id === focusedEmployeeId) || {
@@ -1670,12 +1829,13 @@ export default function Attendance() {
           >
             <Database size={14} /> Raw Scanner
           </button>
-          <button 
-             onClick={() => setGuideOpen(true)}
-             className="flex-none ml-1 text-slate-400 hover:text-[#3f809e] transition-colors p-2 cursor-pointer"
-             title="User Guide"
+          <button
+            onClick={() => { setActiveSubTab('incompleteReport'); }}
+            className={`flex-none text-center py-2 px-4 rounded-xl text-[10px] sm:text-xs font-black uppercase tracking-wider transition-all flex items-center justify-center gap-2 cursor-pointer ${
+              activeSubTab === 'incompleteReport' ? 'bg-[#212c46] text-[#b58c4f] shadow-md' : 'text-[#212c46] hover:text-[#b58c4f] hover:bg-slate-50'
+            }`}
           >
-             <HelpCircle size={18} />
+            <AlertTriangle size={14} className="text-amber-500 animate-pulse" /> สแกนไม่ครบรอบ ({incompleteLogsList.length})
           </button>
         </div>
       </div>
@@ -1768,6 +1928,71 @@ export default function Attendance() {
                 {rawScannerLogs.filter(x => !x.isMatched).length} รายการ
               </h4>
               <p className="text-[8px] font-bold text-rose-500 mt-1">UNIDENTIFIED SCAN CODES</p>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* CONDITIONAL TOP KPIs FOR INCOMPLETE SCANS REPORT */}
+      {activeSubTab === 'incompleteReport' && (
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 animate-fade-in mb-2">
+          {/* Total Incomplete */}
+          <div className="bg-white rounded-2xl p-4 border border-slate-150 shadow-sm flex items-center gap-2 sm:gap-4">
+            <div className="w-11 h-11 bg-rose-50 text-rose-600 rounded-xl flex items-center justify-center">
+              <AlertTriangle size={20} className="animate-bounce" />
+            </div>
+            <div className="font-sans">
+              <p className="text-[9px] font-black uppercase tracking-widest text-rose-800">พบการสแกนไม่ครบ</p>
+              <h4 className="text-xl font-black text-rose-700 leading-none mt-1">{incompleteLogsList.length} แถว</h4>
+              <p className="text-[8px] font-bold text-rose-500 mt-1">TOTAL INCOMPLETE LOGS</p>
+            </div>
+          </div>
+
+          {/* Daily Employees Incomplete */}
+          <div className="bg-white rounded-2xl p-4 border border-slate-150 shadow-sm flex items-center gap-2 sm:gap-4">
+            <div className="w-11 h-11 bg-amber-50 text-amber-700 rounded-xl flex items-center justify-center">
+              <UserCheck size={20} />
+            </div>
+            <div className="font-sans">
+              <p className="text-[9px] font-black uppercase tracking-widest text-amber-800">พนักงานรายวัน (Daily)</p>
+              <h4 className="text-xl font-black text-amber-800 leading-none mt-1">
+                {incompleteLogsList.filter(log => {
+                  const emp = employees.find(e => e.employeeId === log.matchedEmployeeId);
+                  return emp && emp.jobStatus !== 'Permanent';
+                }).length} แถว
+              </h4>
+              <p className="text-[8px] font-bold text-amber-600 mt-1">REQUIRED ALL 4 ROUNDS</p>
+            </div>
+          </div>
+
+          {/* Monthly Employees Incomplete */}
+          <div className="bg-white rounded-2xl p-4 border border-slate-150 shadow-sm flex items-center gap-2 sm:gap-4">
+            <div className="w-11 h-11 bg-violet-50 text-violet-700 rounded-xl flex items-center justify-center">
+              <Users size={20} />
+            </div>
+            <div className="font-sans">
+              <p className="text-[9px] font-black uppercase tracking-widest text-violet-800">พนักงานรายเดือน (Monthly)</p>
+              <h4 className="text-xl font-black text-violet-800 leading-none mt-1">
+                {incompleteLogsList.filter(log => {
+                  const emp = employees.find(e => e.employeeId === log.matchedEmployeeId);
+                  return emp && emp.jobStatus === 'Permanent';
+                }).length} แถว
+              </h4>
+              <p className="text-[8px] font-bold text-violet-600 mt-1">REQUIRED KEY 2 ROUNDS</p>
+            </div>
+          </div>
+
+          {/* Filtered Display */}
+          <div className="bg-white rounded-2xl p-4 border border-slate-150 shadow-sm flex items-center gap-2 sm:gap-4">
+            <div className="w-11 h-11 bg-slate-50 text-[#3f809e] rounded-xl flex items-center justify-center">
+              <Layers size={20} />
+            </div>
+            <div className="font-sans">
+              <p className="text-[9px] font-black uppercase tracking-widest text-slate-500">ที่กําลังแสดงผลอยู่</p>
+              <h4 className="text-xl font-black text-[#212c46] leading-none mt-1">
+                {filteredIncompleteLogs.length} รายการ
+              </h4>
+              <p className="text-[8px] font-bold text-[#b58c4f] mt-1">FILTERED AUDIT BUFFER</p>
             </div>
           </div>
         </div>
@@ -2228,6 +2453,14 @@ export default function Attendance() {
           </div>
 
           <div className="flex flex-wrap items-center gap-2.5">
+            {selectedAttLogIds.length > 0 && (
+              <button
+                onClick={() => handleDeleteAttendanceLogs(selectedAttLogIds)}
+                className="bg-rose-600 hover:bg-rose-700 text-white font-black py-2.5 px-4 rounded-xl text-[10px] uppercase tracking-widest shadow-sm transition-all cursor-pointer border-0 flex items-center gap-1.5 active:scale-95 text-center"
+              >
+                <Trash2 size={12} strokeWidth={2.5} /> ลบที่เลือก ({selectedAttLogIds.length})
+              </button>
+            )}
             <button
               onClick={() => setIsCsvModalOpen(true)}
               className="bg-[#212c46] hover:bg-[#212c46]/95 text-[#b58c4f] font-black py-2.5 px-4 rounded-xl text-[10px] uppercase tracking-widest shadow-sm transition-all cursor-pointer border-0 flex items-center gap-1.5 active:scale-95 text-center"
@@ -2297,29 +2530,45 @@ export default function Attendance() {
 
         {/* LOGBOOK GRID/TABLE CONTAINER */}
         <div className="overflow-x-auto rounded-2xl border border-slate-150">
-          <table className="w-full text-left border-collapse min-w-[900px]">
+          <table className="w-full text-left border-collapse min-w-[950px]">
             <thead>
               <tr className="bg-slate-50 text-[9px] font-black text-[#212c46] uppercase border-b border-slate-150">
-                <th className="p-3.5 pl-5">Date (วันที่)</th>
+                <th className="p-3.5 pl-5 w-12 text-center">
+                  <input
+                    type="checkbox"
+                    checked={filteredLogsList.length > 0 && filteredLogsList.every(log => selectedAttLogIds.includes(log.id))}
+                    onChange={(e) => {
+                      if (e.target.checked) {
+                        setSelectedAttLogIds(prev => [...prev, ...filteredLogsList.map(l => l.id).filter(id => !prev.includes(id))]);
+                      } else {
+                        const visibleIds = filteredLogsList.map(l => l.id);
+                        setSelectedAttLogIds(prev => prev.filter(id => !visibleIds.includes(id)));
+                      }
+                    }}
+                    className="w-3.5 h-3.5 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 cursor-pointer"
+                  />
+                </th>
+                <th className="p-3.5">Date (วันที่)</th>
                 <th className="p-3.5">Shift (กะการทำงาน)</th>
                 <th className="p-3.5">Clock In (เข้างาน)</th>
                 <th className="p-3.5">Clock Out (ออกงาน)</th>
                 <th className="p-3.5">Shift Hours (ชั่วโมง)</th>
                 <th className="p-3.5">Mode (ช่องทาง)</th>
                 <th className="p-3.5">Status (สถานะ)</th>
-                <th className="p-3.5 pr-5">Remarks (หมายเหตุ)</th>
+                <th className="p-3.5">Remarks (หมายเหตุ)</th>
+                <th className="p-3.5 pr-5 text-center w-20">Actions (ลบ)</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-150">
               {isLoading ? (
                 <tr>
-                  <td colSpan={8} className="p-10 text-center text-xs font-bold text-slate-400 uppercase tracking-widest animate-pulse">
+                  <td colSpan={10} className="p-10 text-center text-xs font-bold text-slate-400 uppercase tracking-widest animate-pulse">
                     Synchronizing attendance database logbooks...
                   </td>
                 </tr>
               ) : filteredLogsList.length === 0 ? (
                 <tr>
-                  <td colSpan={8} className="p-12 text-center text-xs font-black text-slate-400 bg-slate-50/50 uppercase tracking-wider">
+                  <td colSpan={10} className="p-12 text-center text-xs font-black text-slate-400 bg-slate-50/50 uppercase tracking-wider">
                     No matching attendance logs catalogued.
                   </td>
                 </tr>
@@ -2327,14 +2576,31 @@ export default function Attendance() {
                 filteredLogsList.map((log) => {
                   const isPresent = log.status === 'Present';
                   const isLate = log.status === 'Late';
+                  const isChecked = selectedAttLogIds.includes(log.id);
                   
                   return (
                     <tr 
                       key={log.id} 
-                      className="hover:bg-slate-50/70 text-slate-700 transition-colors text-[11px] font-bold"
+                      className={`hover:bg-slate-50/70 text-slate-700 transition-colors text-[11px] font-bold ${isChecked ? 'bg-indigo-50/30' : ''}`}
                     >
+                      {/* Selection Checkbox */}
+                      <td className="p-3.5 pl-5 text-center">
+                        <input
+                          type="checkbox"
+                          checked={isChecked}
+                          onChange={(e) => {
+                            if (e.target.checked) {
+                              setSelectedAttLogIds(prev => [...prev, log.id]);
+                            } else {
+                              setSelectedAttLogIds(prev => prev.filter(id => id !== log.id));
+                            }
+                          }}
+                          className="w-3.5 h-3.5 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 cursor-pointer"
+                        />
+                      </td>
+
                       {/* Date */}
-                      <td className="p-3.5 pl-5 font-mono text-[#212c46] font-extrabold select-none">
+                      <td className="p-3.5 font-mono text-[#212c46] font-extrabold select-none">
                         {log.date}
                       </td>
 
@@ -2385,14 +2651,25 @@ export default function Attendance() {
                               ? 'bg-amber-50 border-amber-200 text-amber-700' 
                               : 'bg-rose-50 border-rose-200 text-rose-700'
                         }`}>
-                          <span className={`w-1.5 h-1.5 rounded-full ${isPresent ? 'bg-emerald-550' : isLate ? 'bg-amber-550' : 'bg-rose-550'}`} />
-                          {log.status === 'Present' ? 'Present (ตรงเวลา)' : log.status === 'Late' ? 'Late (เข้าสาย)' : log.status || 'Active'}
+                          <span className={`w-1.5 h-1.5 rounded-full ${isPresent ? 'bg-emerald-500' : isLate ? 'bg-amber-500' : 'bg-rose-500'}`} />
+                          {log.status === 'Present' ? 'Present (ตรงเวลา)' : log.status === 'Late' ? 'Late (เข้างานสาย)' : log.status || 'Active'}
                         </span>
                       </td>
 
-                      {/* Logs remarks */}
-                      <td className="p-3.5 pr-5 font-medium text-slate-400 italic truncate max-w-[200px]" title={log.remarks}>
+                      {/* Remarks */}
+                      <td className="p-3.5 font-medium text-slate-400 italic truncate max-w-[150px]" title={log.remarks}>
                         "{log.remarks || 'No notes provided'}"
+                      </td>
+
+                      {/* Single Delete Action */}
+                      <td className="p-3.5 pr-5 text-center">
+                        <button
+                          onClick={() => handleDeleteAttendanceLogs([log.id])}
+                          className="w-7 h-7 inline-flex items-center justify-center rounded-lg text-rose-600 bg-rose-50 hover:bg-rose-100 transition-all active:scale-95 cursor-pointer border-0"
+                          title="ลบข้อมูลรายการนี้"
+                        >
+                          <Trash2 size={12} />
+                        </button>
                       </td>
                     </tr>
                   );
@@ -2403,126 +2680,115 @@ export default function Attendance() {
         </div>
       </div>
         </>
-      ) : (
-        <div id="raw-scanner-log-hub-workspace" className="space-y-6">
-          {/* Header Dashboard Banner */}
-          <div className="bg-white rounded-3xl border border-slate-150 p-6 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-6 transition-all">
-            <div>
-              <span className="text-[10px] uppercase text-[#b58c4f] font-black tracking-widest flex items-center gap-1">
-                <Database size={11} className="animate-pulse" /> FINGERPRINT RAW ARCHIVE &bull; คลังประวัติลายนิ้วมือดิบสะสม
-              </span>
-              <h2 className="text-xl font-black uppercase text-[#212c46] tracking-tight leading-none mt-1 font-sans">
-                ฐานข้อมูลดิบเครื่องสแกนลายนิ้วมือโรงงาน (Factory Scanner Raw logs)
-              </h2>
-              <p className="text-[9px] font-extrabold uppercase text-[#7a8b95] mt-1.5 leading-relaxed max-w-2xl font-sans">
-                หน้ารวมข้อมมูลลงเวลาดิบของพนักงานทั้งโรงงานแบบรวมศูนย์ สามารถคัดแยกแผนก คัดกรองวันทำงาน และตรวจสอบประวัติลายนิ้วมือ 
-                เพื่อทำการอนุมัติจับคู่พนักงานแล้วซิงค์ข้อมูลลงใบบันทึกเวลาทำงานจริงของ HR ต่อไป
-              </p>
-            </div>
+      ) : activeSubTab === 'rawScanner' ? (
+        <div id="raw-scanner-log-hub-workspace" className="space-y-4">
+          
+          {/* 1. CONTAINER CARD FOR FILTER TOOLBAR + TABLE + PAGINATION */}
+          <div className="bg-white rounded-[24px] border border-[#adb2b0]/35 shadow-sm overflow-hidden flex flex-col">
             
-            <div className="flex flex-wrap items-center gap-2">
-              <button
-                onClick={() => setIsCsvModalOpen(true)}
-                className="bg-[#212c46] hover:bg-[#b58c4f] text-white hover:text-white font-extrabold py-2.5 px-4 rounded-xl text-[10px] uppercase tracking-wider transition-all shadow-md border-0 flex items-center gap-1.5 cursor-pointer active:scale-95 text-center"
-              >
-                <Upload size={14} /> นำเข้าไฟล์สแกนนิ้ว CSV
-              </button>
+            {/* Top Toolbar: Search + Filters + Actions (bg-white, py-4) */}
+            <div className="px-6 py-4 bg-white border-b border-slate-150 flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4 shrink-0">
               
-              <button
-                onClick={async () => {
-                  const demoData = [
-                    { id: `raw-demo-${Date.now()}-1`, acNo: '54002', name: 'PETER SIMPSON', dept: 'โรงเหล็ก', date: '2026-06-03', morningIn: '08:15', morningOut: '12:00', afternoonIn: '13:00', afternoonOut: '17:35', otIn: '18:00', otOut: '20:15', checkIn: '08:15', checkOut: '20:15', hours: 10.25, status: 'Present', remarks: 'คลังตัวอย่างสัญจร', matchedEmployeeId: 'U002', matchedEmployeeName: 'นิภาวรรณ มั่นคง (Nipawan Mankong)', isMatched: true, isProcessed: false },
-                    { id: `raw-demo-${Date.now()}-2`, acNo: '53005', name: 'SOMCHAI WORKER', dept: 'โรงประกอบ', date: '2026-06-03', morningIn: '08:45', morningOut: '12:00', afternoonIn: '13:00', afternoonOut: '17:30', otIn: '', otOut: '', checkIn: '08:45', checkOut: '17:30', hours: 8.00, status: 'Late', remarks: 'คลังตัวอย่างสัญจร', matchedEmployeeId: 'U011', matchedEmployeeName: 'จันทร์เพ็ญ โสภา (Chanphen Sopha)', isMatched: true, isProcessed: false },
-                    { id: `raw-demo-${Date.now()}-3`, acNo: '55010', name: 'UNKNOWN MACHINE NAME', dept: 'Logistics', date: '2026-06-04', morningIn: '08:02', morningOut: '12:00', afternoonIn: '13:00', afternoonOut: '17:01', otIn: '', otOut: '', checkIn: '08:02', checkOut: '17:01', hours: 7.98, status: 'Present', remarks: 'ชื่อแปลกสแกน', matchedEmployeeId: '', matchedEmployeeName: '', isMatched: false, isProcessed: false }
-                  ];
-                  setIsLoading(true);
-                  try {
-                    await dbSync.write('RawScannerLogs', demoData);
-                    setRawScannerLogs(prev => [...demoData, ...prev]);
-                    MySwal.fire({
-                      icon: 'success',
-                      title: 'นำเข้าตัวอย่างสำเร็จ',
-                      text: 'นำเข้าข้อมูลเวลาเครื่องสแกนทดสอบจำนวน 3 รายการเสร็จสิ้น!',
-                      confirmButtonColor: '#212c46'
-                    });
-                  } catch (err) {
-                    console.error(err);
-                  } finally {
-                    setIsLoading(false);
-                  }
-                }}
-                className="bg-slate-100 hover:bg-slate-200 text-slate-700 font-extrabold py-2.5 px-4 rounded-xl text-[10px] uppercase tracking-wider transition-all border border-slate-200 flex items-center gap-1.5 cursor-pointer"
-              >
-                📥 นำเข้าตัวอย่างจริง (Demo)
-              </button>
-            </div>
-          </div>
-
-          {/* Action Toolbar on Raw Database */}
-          <div className="flex flex-col gap-4">
-            
-            {/* Filter Toolbar Header */}
-            <div className="flex flex-col md:flex-row items-center justify-between gap-4 font-sans">
-              <div className="flex items-center gap-2 text-[#212c46] font-black text-xs uppercase tracking-wider">
-                <Filter size={14} className="text-[#b58c4f]" /> ค้นหาและคัดกรองข้อมูลระเบียบดิบ (Filters Desk)
-              </div>
-              
-              {selectedRawLogIds.length > 0 && (
-                <div className="flex items-center gap-2 animate-fade-in bg-slate-50 px-3 py-1.5 rounded-xl border border-slate-200">
-                  <span className="text-[10px] font-black text-indigo-700">เลือกอยู่ {selectedRawLogIds.length} แถว:</span>
-                  
-                  <button
-                    onClick={handleProcessSelectedRawScannerLogs}
-                    className="bg-emerald-600 hover:bg-emerald-700 text-white font-black text-[9px] uppercase tracking-wider py-1.5 px-3 rounded-lg border-0 transition-colors flex items-center gap-1 cursor-pointer"
-                  >
-                    <Check size={10} strokeWidth={3} /> ประมวลผลเข้าระบบหลัก
-                  </button>
-
-                  <button
-                    onClick={() => setIsAttendancePrintOpen(true)}
-                    className="bg-amber-600 hover:bg-amber-700 text-white font-black text-[9px] uppercase tracking-wider py-1.5 px-3 rounded-lg border-0 transition-colors flex items-center gap-1 cursor-pointer"
-                  >
-                    <FileText size={10} /> พิมพ์บัตรลงเวลา (Batch PDF)
-                  </button>
-
-                  <button
-                    onClick={handleExportAttendancePDF}
-                    className="bg-[#3f809e] hover:bg-[#212c46] text-white font-black text-[9px] uppercase tracking-wider py-1.5 px-3 rounded-lg border-0 transition-colors flex items-center gap-1 cursor-pointer"
-                  >
-                    <FileSpreadsheet size={10} /> สรุปตารางรายงาน
-                  </button>
-
-                  <button
-                    onClick={handleExportAttendanceCSV}
-                    className="bg-white border border-slate-350 hover:bg-slate-50 text-[#212c46] font-black text-[9px] uppercase tracking-wider py-1.5 px-3 rounded-lg transition-colors flex items-center gap-1 cursor-pointer"
-                  >
-                    <Upload size={10} className="rotate-180" /> ดึงข้อมูล CSV
-                  </button>
-
-                  <button
-                    onClick={handleDeleteSelectedRawLogs}
-                    className="bg-rose-50 hover:bg-rose-100 text-rose-700 font-black text-[9px] uppercase tracking-wider py-1.5 px-3 rounded-lg border border-rose-200 transition-colors flex items-center gap-1 cursor-pointer"
-                  >
-                    <Trash2 size={10} /> ลบแถวดิบออก
-                  </button>
+              {/* Left side: Standard Controls / Actions */}
+              <div className="flex flex-wrap items-center gap-3">
+                <div className="flex items-center gap-2 text-[#212c46] font-black text-[12px] uppercase tracking-wider">
+                  <Database size={14} className="text-[#b58c4f]" /> RAW LOGS CONSOLE
                 </div>
-              )}
+
+                {/* Import and Demo buttons relocated over the table */}
+                <button
+                  onClick={() => setIsCsvModalOpen(true)}
+                  className="bg-[#212c46] hover:bg-[#b58c4f] text-white hover:text-white font-black py-2 px-3.5 rounded-xl text-[10px] uppercase tracking-wider transition-all shadow-sm flex items-center gap-1.5 cursor-pointer border-0 active:scale-95"
+                >
+                  <Upload size={13} /> นำเข้าไฟล์ CSV
+                </button>
+                
+                <button
+                  onClick={async () => {
+                    const demoData = [
+                      { id: `raw-demo-${Date.now()}-1`, acNo: '54002', name: 'PETER SIMPSON', dept: 'โรงเหล็ก', date: '2026-06-03', morningIn: '08:15', morningOut: '12:00', afternoonIn: '13:00', afternoonOut: '17:35', otIn: '18:00', otOut: '20:15', checkIn: '08:15', checkOut: '20:15', hours: 10.25, status: 'Present', remarks: 'คลังตัวอย่างสัญจร', matchedEmployeeId: 'U002', matchedEmployeeName: 'นิภาวรรณ มั่นคง (Nipawan Mankong)', isMatched: true, isProcessed: false },
+                      { id: `raw-demo-${Date.now()}-2`, acNo: '53005', name: 'SOMCHAI WORKER', dept: 'โรงประกอบ', date: '2026-06-03', morningIn: '08:45', morningOut: '12:00', afternoonIn: '13:00', afternoonOut: '17:30', otIn: '', otOut: '', checkIn: '08:45', checkOut: '17:30', hours: 8.00, status: 'Late', remarks: 'คลังตัวอย่างสัญจร', matchedEmployeeId: 'U011', matchedEmployeeName: 'จันทร์เพ็ญ โสภา (Chanphen Sopha)', isMatched: true, isProcessed: false },
+                      { id: `raw-demo-${Date.now()}-3`, acNo: '55010', name: 'UNKNOWN MACHINE NAME', dept: 'Logistics', date: '2026-06-04', morningIn: '08:02', morningOut: '12:00', afternoonIn: '13:00', afternoonOut: '17:01', otIn: '', otOut: '', checkIn: '08:02', checkOut: '17:01', hours: 7.98, status: 'Present', remarks: 'ชื่อแปลกสแกน', matchedEmployeeId: '', matchedEmployeeName: '', isMatched: false, isProcessed: false }
+                    ];
+                    setIsLoading(true);
+                    try {
+                      await dbSync.write('RawScannerLogs', demoData);
+                      setRawScannerLogs(prev => [...demoData, ...prev]);
+                      MySwal.fire({
+                        icon: 'success',
+                        title: 'นำเข้าตัวอย่างสำเร็จ',
+                        text: 'นำเข้าข้อมูลเวลาเครื่องสแกนทดสอบจำนวน 3 รายการเสร็จสิ้น!',
+                        confirmButtonColor: '#212c46'
+                      });
+                    } catch (err) {
+                      console.error(err);
+                    } finally {
+                      setIsLoading(false);
+                    }
+                  }}
+                  className="bg-slate-50 hover:bg-slate-100 text-[#212c46] hover:text-[#b58c4f] font-black py-2 px-3.5 rounded-xl text-[10px] uppercase tracking-wider transition-all border border-slate-200 flex items-center gap-1.5 cursor-pointer active:scale-95"
+                >
+                  📥 นำเข้าตัวอย่าง (Demo)
+                </button>
+              </div>
+
+              {/* Right side: Batch actions if rows are selected */}
+              <div>
+                {selectedRawLogIds.length > 0 && (
+                  <div className="flex flex-wrap items-center gap-2 animate-fade-in bg-slate-50 px-3 py-1.5 rounded-xl border border-slate-200 shadow-sm">
+                    <span className="text-[10px] font-black text-indigo-700">เลือก {selectedRawLogIds.length} แถว:</span>
+                    
+                    <button
+                      onClick={handleProcessSelectedRawScannerLogs}
+                      className="bg-emerald-600 hover:bg-emerald-700 text-white font-black text-[9px] uppercase tracking-wider py-1.5 px-2.5 rounded-lg border-0 transition-colors flex items-center gap-1 cursor-pointer"
+                    >
+                      <Check size={10} strokeWidth={3} /> ซิงค์หลัก
+                    </button>
+
+                    <button
+                      onClick={() => setIsAttendancePrintOpen(true)}
+                      className="bg-amber-600 hover:bg-amber-700 text-white font-black text-[9px] uppercase tracking-wider py-1.5 px-2.5 rounded-lg border-0 transition-colors flex items-center gap-1 cursor-pointer"
+                    >
+                      <FileText size={10} /> Batch PDF
+                    </button>
+
+                    <button
+                      onClick={handleExportAttendancePDF}
+                      className="bg-[#3f809e] hover:bg-[#212c46] text-white font-black text-[9px] uppercase tracking-wider py-1.5 px-2.5 rounded-lg border-0 transition-colors flex items-center gap-1 cursor-pointer"
+                    >
+                      <FileSpreadsheet size={10} /> รายงาน
+                    </button>
+
+                    <button
+                      onClick={handleExportAttendanceCSV}
+                      className="bg-white border border-slate-350 hover:bg-slate-50 text-[#212c46] font-black text-[9px] uppercase tracking-wider py-1.5 px-2.5 rounded-lg transition-colors flex items-center gap-1 cursor-pointer"
+                    >
+                      <Upload size={10} className="rotate-180" /> CSV
+                    </button>
+
+                    <button
+                      onClick={handleDeleteSelectedRawLogs}
+                      className="bg-rose-50 hover:bg-rose-100 text-rose-700 font-black text-[9px] uppercase tracking-wider py-1.5 px-2.5 rounded-lg border border-rose-200 transition-colors flex items-center gap-1 cursor-pointer"
+                    >
+                      <Trash2 size={10} /> ลบดิบ
+                    </button>
+                  </div>
+                )}
+              </div>
             </div>
 
-            {/* Interactive Inputs Row */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3 font-sans">
-              {/* Name search filter */}
+            {/* Sub-toolbar Filters Row: Responsive Grid */}
+            <div className="px-6 py-4 bg-slate-50/50 border-b border-slate-150 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+              {/* Name Filter */}
               <div className="flex flex-col gap-1">
                 <label className="text-[9px] font-black uppercase tracking-wider text-slate-400">ค้นหารหัส/ชื่อพนักงานดิบ</label>
-                <div className="relative">
-                  <input
-                    type="text"
-                    value={rawSearchName}
-                    onChange={(e) => setRawSearchName(e.target.value)}
-                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-sans placeholder-slate-400 outline-none focus:ring-1 focus:ring-[#b58c4f]"
-                    placeholder="ค้นหาชื่อ, รหัสสแกน ACNo..."
-                  />
-                </div>
+                <input
+                  type="text"
+                  value={rawSearchName}
+                  onChange={(e) => setRawSearchName(e.target.value)}
+                  className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs font-sans placeholder-slate-400 outline-none focus:ring-1 focus:ring-[#b58c4f]"
+                  placeholder="ค้นหาชื่อ, รหัสสแกน ACNo..."
+                />
               </div>
 
               {/* Date Filter */}
@@ -2532,7 +2798,7 @@ export default function Attendance() {
                   type="date"
                   value={rawSearchDate}
                   onChange={(e) => setRawSearchDate(e.target.value)}
-                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-sans outline-none focus:ring-1 focus:ring-[#b58c4f]"
+                  className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs font-sans outline-none focus:ring-1 focus:ring-[#b58c4f]"
                 />
               </div>
 
@@ -2542,9 +2808,9 @@ export default function Attendance() {
                 <select
                   value={rawSearchDept}
                   onChange={(e) => setRawSearchDept(e.target.value)}
-                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-sans outline-none focus:ring-1 focus:ring-[#b58c4f]"
+                  className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs font-sans outline-none focus:ring-1 focus:ring-[#b58c4f] cursor-pointer"
                 >
-                  <option value="All">ทั้งหมดทุกแผนก (All departments)</option>
+                  <option value="All">ทั้งหมดทุกแผนก (All)</option>
                   <option value="โรงเหล็ก">ฝ่ายอาคารผลิตทองเหลือง/เหล็ก</option>
                   <option value="โรงประกอบ">ฝ่ายคลังประกอบและบรรจุ</option>
                   <option value="สำนักงาน">ฝ่ายบุคลากร/สำนักงานกลาง</option>
@@ -2552,13 +2818,13 @@ export default function Attendance() {
                 </select>
               </div>
 
-              {/* System Processing status Filter */}
+              {/* Status Filter */}
               <div className="flex flex-col gap-1">
                 <label className="text-[9px] font-black uppercase tracking-wider text-slate-400">สถานะดำเนินการซิงค์เวลา</label>
                 <select
                   value={rawSearchStatus}
                   onChange={(e) => setRawSearchStatus(e.target.value)}
-                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-sans outline-none focus:ring-1 focus:ring-[#b58c4f]"
+                  className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs font-sans outline-none focus:ring-1 focus:ring-[#b58c4f] cursor-pointer"
                 >
                   <option value="All">แสดงข้อมูลทั้งหมด ทั้งระบบ</option>
                   <option value="Pending">เฉพาะรอดำเนินการ (Awaiting Sync)</option>
@@ -2568,12 +2834,12 @@ export default function Attendance() {
               </div>
             </div>
 
-            {/* List master raw logging data */}
-            <div className="border border-slate-200 rounded-2xl overflow-hidden shadow-sm overflow-x-auto">
-              <table className="w-full text-left border-collapse text-[11px] bg-white font-mono min-w-[1150px]">
-                <thead className="bg-[#212c46] text-[#b58c4f] uppercase tracking-wider text-[9px] font-black">
-                  <tr>
-                    <th className="p-3.5 pl-5 text-center w-12">
+            {/* Data Table Wrapper */}
+            <div className="overflow-x-auto w-full">
+              <table className="w-full text-left border-collapse min-w-[1150px]">
+                <thead>
+                  <tr className="bg-[#212c46] text-white border-b-2 border-[#b58c4f]">
+                    <th className="py-4 px-6 text-center w-12 pl-6">
                       <input
                         type="checkbox"
                         checked={paginatedRawLogs.length > 0 && paginatedRawLogs.every(x => selectedRawLogIds.includes(x.id))}
@@ -2586,19 +2852,19 @@ export default function Attendance() {
                             setSelectedRawLogIds(prev => prev.filter(id => !paginatedIds.includes(id)));
                           }
                         }}
-                        className="rounded border-slate-300 text-[#b58c4f] focus:ring-[#b58c4f]"
+                        className="rounded border-slate-350 text-[#b58c4f] focus:ring-[#b58c4f]"
                       />
                     </th>
-                    <th className="p-3.5">วันที่สแกน (Date)</th>
-                    <th className="p-3.5">คู่รหัสสแกนนิ้ว (Machine Info)</th>
-                    <th className="p-3.5">พนักงานตรวจพบในระบบ (Matched Profile)</th>
-                    <th className="p-3.5 text-center">สแกนช่วงเช้า / บ่าย / โอที (Raw Clock Records)</th>
-                    <th className="p-3.5 text-center">รวมเวลาคํานวณ</th>
-                    <th className="p-3.5 text-center">ยืนยันแล้ว?</th>
-                    <th className="p-3.5 text-center">ดําเนินการ</th>
+                    <th className="py-4 px-6 font-black uppercase tracking-widest text-[12px] whitespace-nowrap">วันที่สแกน (Date)</th>
+                    <th className="py-4 px-6 font-black uppercase tracking-widest text-[12px] whitespace-nowrap">คู่รหัสสแกนนิ้ว (Machine Info)</th>
+                    <th className="py-4 px-6 font-black uppercase tracking-widest text-[12px] whitespace-nowrap">พนักงานตรวจพบในระบบ (Matched Profile)</th>
+                    <th className="py-4 px-6 font-black uppercase tracking-widest text-[12px] whitespace-nowrap text-center">สแกนช่วงเช้า / บ่าย / โอที (Raw Clock Records)</th>
+                    <th className="py-4 px-6 font-black uppercase tracking-widest text-[12px] whitespace-nowrap text-center">รวมเวลาคํานวณ</th>
+                    <th className="py-4 px-6 font-black uppercase tracking-widest text-[12px] whitespace-nowrap text-center">ยืนยันแล้ว?</th>
+                    <th className="py-4 px-6 font-black uppercase tracking-widest text-[12px] whitespace-nowrap text-center pr-6">ดําเนินการ</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-slate-100 divide-y-stretch">
+                <tbody className="divide-y divide-slate-150 bg-white">
                   {paginatedRawLogs.length === 0 ? (
                     <tr>
                       <td colSpan={8} className="p-12 text-center text-slate-400 font-sans">
@@ -2606,7 +2872,7 @@ export default function Attendance() {
                           <Database size={32} className="text-slate-300 animate-bounce" />
                           <h4 className="font-extrabold text-[#212c46] uppercase text-xs">ไม่พบรายการข้อมูลดิบคงค้างสแกน</h4>
                           <p className="text-[10px] text-slate-500 font-medium">
-                            โปรดใช้ปุ่ม <b>"นำเข้าไฟล์สแกนนิ้ว CSV"</b> ด้านบนเพื่อดึงข้อมูลจากตัวสแกนเข้าระบบ หรือปรับฟิลเตอร์กรองวันที่ของคุณ
+                            โปรดใช้ปุ่ม <b>"นำเข้าไฟล์ CSV"</b> ด้านบนเพื่อดึงข้อมูลจากตัวสแกนเข้าระบบ หรือปรับฟิลเตอร์กรองวันที่ของคุณ
                           </p>
                         </div>
                       </td>
@@ -2617,12 +2883,12 @@ export default function Attendance() {
                       return (
                         <tr 
                           key={log.id}
-                          className={`hover:bg-slate-50/70 text-slate-700 transition-colors ${
+                          className={`hover:bg-slate-50/70 text-slate-705 border-b border-slate-100 transition-colors ${
                             isSelected ? 'bg-indigo-50/30' : ''
                           }`}
                         >
                           {/* Checked Box */}
-                          <td className="p-3.5 pl-5 text-center">
+                          <td className="py-2.5 px-6 text-center pl-6">
                             <input
                               type="checkbox"
                               checked={isSelected}
@@ -2638,14 +2904,14 @@ export default function Attendance() {
                           </td>
 
                           {/* Date */}
-                          <td className="p-3.5 font-bold font-sans text-slate-800">
+                          <td className="py-2.5 px-6 font-bold font-sans text-slate-800 text-[12px]">
                             {log.date}
                           </td>
 
                           {/* Machine Name & AC-No */}
-                          <td className="p-3.5 font-sans">
+                          <td className="py-2.5 px-6 font-sans">
                             <div className="flex flex-col">
-                              <span className="font-extrabold text-[#212c46]">{log.name}</span>
+                              <span className="font-extrabold text-[#212c46] text-[12px]">{log.name}</span>
                               <span className="text-[9px] text-[#7a8b95] font-semibold font-mono uppercase">
                                 AC-No: <b className="text-slate-700">{log.acNo}</b> &bull; แผนก: <b className="text-[#b58c4f]">{log.dept || 'ทั่วไป'}</b>
                               </span>
@@ -2653,12 +2919,12 @@ export default function Attendance() {
                           </td>
 
                           {/* Map selective profile */}
-                          <td className="p-3.5">
+                          <td className="py-2.5 px-6">
                             <div className="flex flex-col gap-1 w-[200px] font-sans">
                               <select
                                 value={log.matchedEmployeeId || ''}
                                 onChange={(e) => handleUpdateRawLogEmployeeMapping(log.id, e.target.value)}
-                                className={`py-1 px-2 text-[10px] uppercase font-extrabold rounded-lg outline-none focus:ring-1 focus:ring-[#b58c4f] border cursor-pointer ${
+                                className={`py-1 px-2 text-[11px] uppercase font-extrabold rounded-lg outline-none focus:ring-1 focus:ring-[#b58c4f] border cursor-pointer ${
                                   log.isMatched 
                                     ? 'bg-emerald-50 text-emerald-800 border-emerald-200' 
                                     : 'bg-amber-100 text-amber-900 border-amber-300 font-bold animate-pulse'
@@ -2675,47 +2941,47 @@ export default function Attendance() {
                           </td>
 
                           {/* Stamp Logs stamps */}
-                          <td className="p-3.5 text-center select-none text-[10px]">
+                          <td className="py-2.5 px-6 text-center select-none text-[11px]">
                             <div className="flex items-center justify-center gap-1.5 flex-wrap">
                               {log.morningIn ? (
-                                <span className="font-bold text-emerald-600 bg-emerald-50 px-1 py-0.5 rounded text-[8px] border border-emerald-100" title="เข้างานเช้า">
+                                <span className="font-bold text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded text-[11px] border border-emerald-100" title="เข้างานเช้า">
                                   {log.morningIn}
                                 </span>
                               ) : null}
                               {log.morningOut ? (
-                                <span className="font-sans font-bold text-slate-400 bg-slate-50 px-1 py-0.5 rounded text-[8px] border border-slate-100" title="ออกพักกลางวัน">
+                                <span className="font-sans font-bold text-slate-400 bg-slate-50 px-1.5 py-0.5 rounded text-[11px] border border-slate-100" title="ออกพักกลางวัน">
                                   {log.morningOut}
                                 </span>
                               ) : null}
 
                               {log.afternoonIn ? (
-                                <span className="font-bold text-indigo-600 bg-indigo-50 px-1 py-0.5 rounded text-[8px] border border-indigo-100" title="เข้างานบ่าย">
+                                <span className="font-bold text-indigo-600 bg-indigo-50 px-1.5 py-0.5 rounded text-[11px] border border-indigo-100" title="เข้างานบ่าย">
                                   {log.afternoonIn}
                                 </span>
                               ) : null}
                               {log.afternoonOut ? (
-                                <span className="font-sans font-bold text-indigo-700 bg-indigo-100/50 px-1 py-0.5 rounded text-[8px] border border-indigo-200" title="ออกงานบ่าย">
+                                <span className="font-sans font-bold text-indigo-700 bg-indigo-100/50 px-1.5 py-0.5 rounded text-[11px] border border-indigo-200" title="ออกงานบ่าย">
                                   {log.afternoonOut}
                                 </span>
                               ) : null}
 
                               {log.otIn || log.otOut ? (
-                                <span className="font-bold text-amber-700 bg-amber-50 px-1.5 py-0.5 rounded text-[8.5px] border border-amber-200" title="โอที">
+                                <span className="font-bold text-amber-700 bg-amber-50 px-1.5 py-0.5 rounded text-[11px] border border-amber-200" title="โอที">
                                   OT: {log.otIn || '--:--'} - {log.otOut || '--:--'}
                                 </span>
                               ) : null}
 
                               {!log.morningIn && !log.afternoonIn && (
-                                <span className="text-slate-400">ไม่มีเวลารายงาน</span>
+                                <span className="text-slate-400 text-[11px]">ไม่มีเวลารายงาน</span>
                               )}
                             </div>
                           </td>
 
                           {/* Hours computed */}
-                          <td className="p-3.5 font-bold text-center">
+                          <td className="py-2.5 px-6 font-bold text-center">
                             <div className="flex flex-col items-center">
-                              <span className="text-slate-800">{log.hours ? `${Number(log.hours).toFixed(2)}` : '0.00'} hrs</span>
-                              <span className={`text-[7px] font-black tracking-wider uppercase px-1.5 rounded-full mt-0.5 ${
+                              <span className="text-slate-800 text-[12px]">{log.hours ? `${Number(log.hours).toFixed(2)}` : '0.00'} hrs</span>
+                              <span className={`text-[11px] font-black tracking-wider uppercase px-2 py-0.5 rounded-full mt-0.5 ${
                                 log.status === 'Present' ? 'bg-emerald-50 text-emerald-600 border border-emerald-100' :
                                 log.status === 'Late' ? 'bg-amber-50 text-amber-600 border border-amber-100' :
                                 log.status === 'Leave' ? 'bg-indigo-50 text-indigo-600 border border-indigo-100' :
@@ -2727,13 +2993,13 @@ export default function Attendance() {
                           </td>
 
                           {/* Is processed checked badge */}
-                          <td className="p-3.5 text-center">
+                          <td className="py-2.5 px-6 text-center">
                             {log.isProcessed ? (
-                              <span className="inline-flex items-center gap-1.5 text-emerald-700 bg-emerald-50 rounded-full px-2 py-0.5 border border-emerald-200 text-[8.5px] font-black uppercase tracking-wider">
+                              <span className="inline-flex items-center gap-1.5 text-emerald-700 bg-emerald-50 rounded-full px-2.5 py-0.5 border border-emerald-200 text-[9px] font-black uppercase tracking-wider">
                                 <span className="w-1.5 h-1.5 rounded-full bg-[#10b981]" /> ซิงค์แล้ว (Synced)
                               </span>
                             ) : (
-                              <span className="inline-flex items-center gap-1.5 text-amber-700 bg-amber-50/75 rounded-full px-2 py-0.5 border border-amber-200 text-[8.5px] font-black uppercase tracking-wider select-none animate-pulse">
+                              <span className="inline-flex items-center gap-1.5 text-amber-700 bg-amber-50/75 rounded-full px-2.5 py-0.5 border border-amber-200 text-[9px] font-black uppercase tracking-wider select-none animate-pulse">
                                 <span className="w-1.5 h-1.5 rounded-full bg-amber-500" /> รอประมวลผล (Draft)
                               </span>
                             )}
@@ -2872,7 +3138,535 @@ export default function Attendance() {
             </div>
           </div>
         </div>
+      ) : (
+        /* Render Incomplete Punches Report Tab */
+        <div id="incomplete-punches-report-hub" className="space-y-4 animate-fade-in font-sans">
+          {/* Main Container Card */}
+          <div className="bg-white rounded-[24px] border border-slate-200 shadow-sm overflow-hidden flex flex-col">
+            {/* Toolbar Header */}
+            <div className="px-6 py-4 bg-white border-b border-slate-150 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 shrink-0">
+              <div className="flex items-center gap-2 text-[#212c46] font-black text-[12px] uppercase tracking-wider">
+                <AlertTriangle size={15} className="text-rose-500 animate-pulse" /> 
+                รายงานสแกนไม่ครบรอบ แยกรายแผนก (Biometric Punch Audit Logs)
+              </div>
+              
+              {/* Toolbar Action buttons */}
+              <div className="flex flex-wrap items-center gap-2">
+                {selectedIncompleteLogIds.length > 0 ? (
+                  <>
+                    <button
+                      onClick={() => setIsIncompletePrintOpen(true)}
+                      className="bg-rose-600 hover:bg-rose-700 text-white font-black py-2 px-3.5 rounded-xl text-[10px] uppercase tracking-wider transition-all shadow-md flex items-center gap-1.5 cursor-pointer border-0 active:scale-95"
+                    >
+                      <Printer size={13} /> พิมพ์ใบนำส่งอนุมัติสแกนไม่ครบ ({selectedIncompleteLogIds.length} คน)
+                    </button>
+                    <button
+                      onClick={() => setIsIncompleteSummaryPrintOpen(true)}
+                      className="bg-[#212c46] hover:bg-[#b58c4f] text-white font-black py-2 px-3.5 rounded-xl text-[10px] uppercase tracking-wider transition-all shadow-xs flex items-center gap-1.5 cursor-pointer border-0 active:scale-95"
+                    >
+                      <FileText size={13} /> พิมพ์ใบสรุปแยกแผนกย่อ
+                    </button>
+                    <button
+                      onClick={() => setSelectedIncompleteLogIds([])}
+                      className="bg-slate-100 hover:bg-slate-200 text-slate-600 font-extrabold py-2 px-3 rounded-xl text-[10px] uppercase tracking-wider transition-all border-0 cursor-pointer"
+                    >
+                      ล้างที่เลือก ({selectedIncompleteLogIds.length})
+                    </button>
+                  </>
+                ) : (
+                  <span className="text-[10px] text-slate-400 font-extrabold uppercase">
+                    โปรดเลือกพนักงานพนักงานรายแถวด้านล่างเพื่อกระทำการพิมพ์ PDF
+                  </span>
+                )}
+              </div>
+            </div>
+
+            {/* Filter Row */}
+            <div className="px-6 py-4 bg-slate-50/55 border-b border-slate-150 grid grid-cols-1 sm:grid-cols-2 gap-4">
+              {/* Department Filter (กรองชื่อ แยกเป็นแผนก) */}
+              <div className="flex flex-col gap-1">
+                <label className="text-[9px] font-black uppercase tracking-wider text-slate-400">แผนกเครื่องสแกน (Department Filter)</label>
+                <select
+                  value={incompleteSearchDept}
+                  onChange={(e) => setIncompleteSearchDept(e.target.value)}
+                  className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs font-sans outline-none focus:ring-1 focus:ring-[#b58c4f] cursor-pointer"
+                >
+                  <option value="All">ทั้งหมดทุกแผนก (All Departments)</option>
+                  {availableDepartments.map(dept => (
+                    <option key={dept} value={dept}>{dept}</option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Date Filter */}
+              <div className="flex flex-col gap-1">
+                <label className="text-[9px] font-black uppercase tracking-wider text-slate-400">วันทำงานที่ต้องการตรวจตรา (Date filter)</label>
+                <input
+                  type="date"
+                  value={incompleteSearchDate}
+                  onChange={(e) => setIncompleteSearchDate(e.target.value)}
+                  className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs font-sans outline-none focus:ring-1 focus:ring-[#b58c4f]"
+                />
+              </div>
+            </div>
+
+            {/* Interactive Data Table */}
+            <div className="overflow-x-auto w-full">
+              <table className="w-full text-left border-collapse min-w-[1000px]">
+                <thead>
+                  <tr className="bg-[#212c46] text-white border-b border-rose-400">
+                    <th className="py-4 px-6 text-center w-12 pl-6">
+                      <input
+                        type="checkbox"
+                        checked={filteredIncompleteLogs.length > 0 && filteredIncompleteLogs.every(x => selectedIncompleteLogIds.includes(x.id))}
+                        onChange={(e) => {
+                          if (e.target.checked) {
+                            setSelectedIncompleteLogIds(filteredIncompleteLogs.map(x => x.id));
+                          } else {
+                            setSelectedIncompleteLogIds([]);
+                          }
+                        }}
+                        className="rounded border-slate-350 text-rose-600 focus:ring-rose-500"
+                      />
+                    </th>
+                    <th className="py-4 px-4 font-black uppercase tracking-widest text-[11px] whitespace-nowrap">วันที่สแกน (Date)</th>
+                    <th className="py-4 px-4 font-black uppercase tracking-widest text-[11px] whitespace-nowrap">พนักงานตรวจจับได้ (Matched Employee)</th>
+                    <th className="py-4 px-4 font-black uppercase tracking-widest text-[11px] text-center whitespace-nowrap">ประเภทการจ้างงาน (Pay Type)</th>
+                    <th className="py-4 px-6 font-black uppercase tracking-widest text-[11px] text-center whitespace-nowrap">แถวสแกนดิบที่พบ (Raw Time stamps found)</th>
+                    <th className="py-4 px-4 font-black uppercase tracking-widest text-[11px] text-center whitespace-nowrap">วิเคราะห์สลอตที่ขาด (System Warnings)</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-150 bg-white">
+                  {filteredIncompleteLogs.length === 0 ? (
+                    <tr>
+                      <td colSpan={6} className="p-12 text-center text-slate-400">
+                        <div className="max-w-md mx-auto space-y-2 flex flex-col items-center">
+                          <CheckCircle size={32} className="text-emerald-500 animate-pulse" />
+                          <h4 className="font-extrabold text-[#212c46] uppercase text-xs">เรียบร้อยร้อยดี! ไม่พบข้อมูลสแกนไม่ครบรอบสิทธิ์</h4>
+                          <p className="text-[10px] text-slate-500 font-medium leading-relaxed font-sans">
+                            ระบบคํานวณประเมินแล้ว พนักงานรายวันทุกคนสแกนครบ 4 รอบเช้าบ่าย และพนักงานรายเดือนทุกคนสแกนครบ 2 รอบแล้ว
+                          </p>
+                        </div>
+                      </td>
+                    </tr>
+                  ) : (
+                    filteredIncompleteLogs.map((log) => {
+                      const isSelected = selectedIncompleteLogIds.includes(log.id);
+                      const emp = employees.find(e => e.employeeId === log.matchedEmployeeId || e.id === log.matchedEmployeeId);
+                      const isPermanent = emp ? emp.jobStatus === 'Permanent' : false;
+                      const empDept = emp ? (emp.dept || emp.department || 'ทั่วไป') : (log.dept || 'ทั่วไป');
+                      
+                      return (
+                        <tr 
+                          key={log.id}
+                          className={`hover:bg-slate-50 border-b border-slate-100 text-slate-705 transition-colors ${
+                            isSelected ? 'bg-rose-50/25' : ''
+                          }`}
+                        >
+                          {/* Selection Checkbox */}
+                          <td className="py-3 px-6 text-center pl-6">
+                            <input
+                              type="checkbox"
+                              checked={isSelected}
+                              onChange={(e) => {
+                                if (e.target.checked) {
+                                  setSelectedIncompleteLogIds(prev => [...prev, log.id]);
+                                } else {
+                                  setSelectedIncompleteLogIds(prev => prev.filter(id => id !== log.id));
+                                }
+                              }}
+                              className="rounded border-slate-300 text-rose-600 focus:ring-rose-500"
+                            />
+                          </td>
+
+                          {/* Date of punch */}
+                          <td className="py-3 px-4 font-bold font-sans text-slate-800 text-[11px]">
+                            {log.date}
+                          </td>
+
+                          {/* Profile */}
+                          <td className="py-3 px-4 font-sans">
+                            <div className="flex flex-col">
+                              <span className="font-extrabold text-[#212c46] text-xs">
+                                {emp ? emp.name : log.matchedEmployeeName || log.name}
+                              </span>
+                              <span className="text-[9px] text-[#7a8b95] font-semibold font-mono uppercase">
+                                ID: <b className="text-slate-750 font-mono">{log.matchedEmployeeId || log.acNo}</b> &bull; ฝ่าย: <b className="text-[#b58c4f]">{empDept}</b>
+                              </span>
+                            </div>
+                          </td>
+
+                          {/* Hiring contract type */}
+                          <td className="py-3 px-4 text-center">
+                            {isPermanent ? (
+                              <span className="text-[9px] uppercase font-black bg-indigo-50 text-indigo-700 px-2 py-0.5 rounded-full border border-indigo-150">
+                                รายเดือน (Permanent)
+                              </span>
+                            ) : (
+                              <span className="text-[9px] uppercase font-black bg-amber-50 text-amber-700 px-2 py-0.5 rounded-full border border-amber-150 animate-pulse">
+                                รายวัน (Hourly Daily)
+                              </span>
+                            )}
+                          </td>
+
+                          {/* Time Stamp columns */}
+                          <td className="py-3 px-6 text-center select-none text-[10px]">
+                            <div className="flex items-center justify-center gap-1.5 flex-wrap">
+                              {log.morningIn ? (
+                                <span className="font-mono text-emerald-700 font-bold bg-emerald-50 px-1.5 py-0.5 border border-emerald-150 rounded" title="เข้างานเช้า">
+                                  เข้า: {log.morningIn}
+                                </span>
+                              ) : (
+                                <span className="font-sans font-extrabold text-rose-600 bg-rose-50 px-1.5 py-0.5 border border-rose-150 rounded" title="ไม่มีเช้าเข้า">
+                                  เข้า: ตกหล่น
+                                </span>
+                              )}
+
+                              {/* Morning out is required ONLY for non-permanent (daily) employees */}
+                              {log.morningOut ? (
+                                <span className="font-mono text-slate-600 font-bold bg-slate-50 px-1.5 py-0.5 border border-slate-200 rounded" title="ออกพักเที่ยง">
+                                  พักออก: {log.morningOut}
+                                </span>
+                              ) : isPermanent ? null : (
+                                <span className="font-sans font-extrabold text-rose-600 bg-rose-50 px-1.5 py-0.5 border border-rose-150 rounded" title="ไม่มีสแกนพักกลางวัน">
+                                  พักออก: ตกหล่น
+                                </span>
+                              )}
+
+                              {/* Afternoon in is required ONLY for non-permanent (daily) employees */}
+                              {log.afternoonIn ? (
+                                <span className="font-mono text-slate-600 font-bold bg-slate-50 px-1.5 py-0.5 border border-slate-200 rounded" title="เข้าบ่าย">
+                                  บ่ายเข้า: {log.afternoonIn}
+                                </span>
+                              ) : isPermanent ? null : (
+                                <span className="font-sans font-extrabold text-rose-600 bg-rose-50 px-1.5 py-0.5 border border-rose-150 rounded" title="ไม่มีบ่ายทำงาน">
+                                  บ่ายเข้า: ตกหล่น
+                                </span>
+                              )}
+
+                              {log.afternoonOut ? (
+                                <span className="font-mono text-indigo-700 font-bold bg-indigo-50 px-1.5 py-0.5 border border-indigo-150 rounded" title="เย็นออก">
+                                  เลิกออก: {log.afternoonOut}
+                                </span>
+                              ) : (
+                                <span className="font-sans font-extrabold text-rose-600 bg-rose-50 px-1.5 py-0.5 border border-rose-150 rounded" title="ไม่มีสแกนเย็นออก">
+                                  เลิกออก: ตกหล่น
+                                </span>
+                              )}
+                            </div>
+                          </td>
+
+                          {/* Analysis Warnings */}
+                          <td className="py-3 px-4 font-sans text-center">
+                            {(() => {
+                              const missingList: string[] = [];
+                              if (!log.morningIn) missingList.push("สแกนเช้าเข้า");
+                              if (!log.morningOut && !isPermanent) missingList.push("สแกนออกพัก");
+                              if (!log.afternoonIn && !isPermanent) missingList.push("สแกนเข้าบ่าย");
+                              if (!log.afternoonOut) missingList.push("สแกนเย็นออก");
+
+                              return (
+                                <span className="text-[9px] font-black text-rose-700 bg-rose-50 px-2 py-0.5 rounded border border-rose-200 tracking-wide">
+                                  ขาด {missingList.length} รายการ ({missingList.slice(0, 2).join(", ")}{missingList.length > 2 ? "..." : ""})
+                                </span>
+                              );
+                            })()}
+                          </td>
+                        </tr>
+                      );
+                    })
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
       )}
+
+      {/* Incomplete Punches Individual Sign-off PDF Modal */}
+      <PrintPreviewModal
+        isOpen={isIncompletePrintOpen}
+        onClose={() => setIsIncompletePrintOpen(false)}
+        title="ใบรับรองอนุมัติการลงบันทึกเวลางานกรณีสแกนนิ้วไม่ครบรอบ - T All Intelligence"
+      >
+        <div className="space-y-12 print-layout">
+          {rawScannerLogs.filter(log => selectedIncompleteLogIds.includes(log.id)).map((log, idx, arr) => {
+            const isLast = idx === arr.length - 1;
+            const emp = employees.find(e => e.employeeId === log.matchedEmployeeId || e.id === log.matchedEmployeeId);
+            const isPermanent = emp ? emp.jobStatus === 'Permanent' : false;
+            const empDept = emp ? (emp.dept || emp.department || 'ทั่วไป') : (log.dept || 'ทั่วไป');
+            
+            return (
+              <div 
+                key={log.id} 
+                className="bg-white p-8 border border-slate-200 rounded-xl relative text-left" 
+                style={{ 
+                  pageBreakAfter: isLast ? 'auto' : 'always', 
+                  breakAfter: isLast ? 'auto' : 'page',
+                  minHeight: '260mm'
+                }}
+              >
+                {/* Standard Dual Company Header */}
+                <div className="flex justify-between items-start border-b-[2px] border-slate-900 pb-4 mb-4 font-sans">
+                  <div className="text-left">
+                    <h2 className="text-sm font-black text-slate-900 uppercase leading-none">T All Intelligence Co., Ltd.</h2>
+                    <p className="text-[10px] text-slate-500 font-bold mt-1">บริษัท ที ออลล์ อินเทลลิเจนซ์ จำกัด</p>
+                    <p className="text-[8px] text-slate-400 font-mono mt-1">TAX ID : 0-1055-57149-33-2</p>
+                  </div>
+                  <div className="text-right">
+                    <span className="text-xs font-black text-rose-700 block uppercase">PUNCH IRREGULARITY CERTIFICATION / ใบรับรองกรณีสแกนนิ้วไม่ครบ</span>
+                    <span className="text-[9px] font-bold text-slate-600 uppercase bg-slate-100 px-2 py-0.5 rounded mt-1 block font-mono">DATE: {log.date}</span>
+                  </div>
+                </div>
+
+                <div className="text-center my-6">
+                  <h3 className="text-sm font-extrabold text-slate-900 uppercase font-sans">ใบขออนุมัติรับรองการลงเวลาทำงาน (กรณีแสกนไม่ครบรอบ)</h3>
+                  <p className="text-[10px] text-slate-500 mt-1 font-sans">เนื่องด้วยระบบตรวจพบการทำรายงานสแกนลายนิ้วมือ มีจำนวนรอบไม่สม่ำเสมอกับประเภทสัญญาจ้างงาน</p>
+                </div>
+
+                {/* Info Area */}
+                <div className="grid grid-cols-2 gap-4 text-[11px] bg-slate-50 p-4 rounded-xl border border-slate-200 mb-6 font-sans">
+                  <div className="space-y-1.5">
+                    <p><span className="text-slate-400 font-bold">ชื่อพนักงานในระบบ:</span> <span className="font-extrabold text-slate-800">{emp ? emp.name : log.matchedEmployeeName || log.name}</span></p>
+                    <p><span className="text-slate-400 font-bold">รหัสผู้ติดต่อ (ACNo):</span> <span className="font-bold text-slate-700 font-mono">{log.acNo || 'N/A'}</span></p>
+                    <p><span className="text-slate-400 font-bold">สัญญาการว่าจ้างงาน:</span> <span className="font-bold text-slate-800">{isPermanent ? 'พนักงานประจำ (รายเดือน) - ถือเกณฑ์เข้า/ออก 2 ครั้ง' : 'พนักงานชั่วคราว (รายวัน) - ถือเกณฑ์ครบถ้วน 4 รอบประทับ'}</span></p>
+                  </div>
+                  <div className="space-y-1.5 text-right">
+                    <p><span className="text-slate-400 font-bold">แผนกต้นสังกัด:</span> <span className="font-bold text-slate-800">{empDept}</span></p>
+                    <p><span className="text-slate-400 font-bold">วันที่พบข้อผิดพลาด:</span> <span className="font-bold text-rose-700 font-mono">{log.date}</span></p>
+                  </div>
+                </div>
+
+                {/* Comparison Table */}
+                <div className="border border-slate-200 rounded-lg overflow-hidden font-sans text-xs mb-6">
+                  <table className="w-full text-left border-collapse">
+                    <thead className="bg-[#212c46] text-white">
+                      <tr>
+                        <th className="py-2.5 px-4 font-bold">ช่วงเวลาลงปฏิบัติสารสนเทศ</th>
+                        <th className="py-2.5 px-4 font-bold text-center">เวลาประทับเครื่องดิบ</th>
+                        <th className="py-2.5 px-4 font-bold text-center">สถานะความครบถ้วน</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100 bg-white">
+                      <tr>
+                        <td className="py-3 px-4 font-medium">1. ลงเวลาเข้างานเช้า (Morning Duty In)</td>
+                        <td className="py-3 px-4 text-center font-bold text-slate-800 font-mono">{log.morningIn || '-'}</td>
+                        <td className="py-3 px-4 text-center">
+                          {log.morningIn ? (
+                            <span className="text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded font-black text-[10px]">บันทึกครบแถว</span>
+                          ) : (
+                            <span className="text-rose-600 bg-rose-50 px-2 py-0.5 rounded font-black text-[10px]">ตกหล่น / ลืมสแกน</span>
+                          )}
+                        </td>
+                      </tr>
+                      {!isPermanent && (
+                        <>
+                          <tr>
+                            <td className="py-3 px-4 font-medium">2. ลงเวลาออกพักเที่ยon (Lunch Out)</td>
+                            <td className="py-3 px-4 text-center font-bold text-slate-800 font-mono">{log.morningOut || '-'}</td>
+                            <td className="py-3 px-4 text-center">
+                              {log.morningOut ? (
+                                <span className="text-slate-705 bg-slate-50 px-2 py-0.5 rounded font-black text-[10px]">บันทึกครบแถว</span>
+                              ) : (
+                                <span className="text-rose-600 bg-rose-50 px-2 py-0.5 rounded font-black text-[10px]">ตกหล่น / ลืมสแกน</span>
+                              )}
+                            </td>
+                          </tr>
+                          <tr>
+                            <td className="py-3 px-4 font-medium">3. ลงเวลากลับเข้างานหลังพัก (Lunch In)</td>
+                            <td className="py-3 px-4 text-center font-bold text-slate-800 font-mono">{log.afternoonIn || '-'}</td>
+                            <td className="py-3 px-4 text-center">
+                              {log.afternoonIn ? (
+                                <span className="text-slate-705 bg-slate-50 px-2 py-0.5 rounded font-black text-[10px]">บันทึกครบแถว</span>
+                              ) : (
+                                <span className="text-rose-600 bg-rose-50 px-2 py-0.5 rounded font-black text-[10px]">ตกหล่น / ลืมสแกน</span>
+                              )}
+                            </td>
+                          </tr>
+                        </>
+                      )}
+                      <tr>
+                        <td className="py-3 px-4 font-medium">2. ลงเวลาออกงานเย็น (Evening Duty Out)</td>
+                        <td className="py-3 px-4 text-center font-bold text-slate-800 font-mono">{log.afternoonOut || '-'}</td>
+                        <td className="py-3 px-4 text-center">
+                          {log.afternoonOut ? (
+                            <span className="text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded font-black text-[10px]">บันทึกครบแถว</span>
+                          ) : (
+                            <span className="text-rose-600 bg-rose-50 px-2 py-0.5 rounded font-black text-[10px]">ตกหล่น / ลืมสแกน</span>
+                          )}
+                        </td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+
+                {/* Reason Selection Form */}
+                <div className="border border-slate-200 rounded-lg p-4 font-sans text-[11px] mb-8 bg-slate-50/50">
+                  <h4 className="font-extrabold text-slate-800 border-b pb-1.5 mb-3 uppercase">ส่วนชี้แจงสาเหตุแจ้งสแกนลายนิ้วมือตกหล่น (Supervisor & Staff Note)</h4>
+                  <p className="text-slate-400 font-bold mb-3">โปรดทำเครื่องหมาย ✓ เลือกข้อที่กําหนดและกรอกคำรับรองแนบประกอบ:</p>
+                  
+                  <div className="grid grid-cols-2 gap-4 text-slate-700 mb-4 h-12">
+                    <div className="flex items-center gap-2">
+                      <div className="w-3.5 h-3.5 border-2 border-slate-300 rounded-sm"></div>
+                      <span>ทำงานนอกสถานที่/ฝ่ายบริการ (Outer Field Services)</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <div className="w-3.5 h-3.5 border-2 border-slate-300 rounded-sm"></div>
+                      <span>เครื่องทาบเปียกน้ำสแกนไม่ติด (Hardware Error)</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <div className="w-3.5 h-3.5 border-2 border-slate-300 rounded-sm"></div>
+                      <span>ได้รับการขอร้องออกด่วนครึ่งคาบ (Emergency Leave)</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <div className="w-3.5 h-3.5 border-2 border-slate-300 rounded-sm"></div>
+                      <span>พนักงานหลงลืมแสกนประพฤติ (User Oversight)</span>
+                    </div>
+                  </div>
+
+                  <div className="mt-2 text-slate-500 font-semibold leading-relaxed">
+                    คำชี้แจงเพิ่มเติม : ..........................................................................................................................................................<br />
+                    ........................................................................................................................................................................................................
+                  </div>
+                </div>
+
+                {/* Signatures */}
+                <div className="grid grid-cols-3 gap-6 text-[10px] text-slate-500 pt-10 mt-14 border-t border-dashed font-sans">
+                  <div className="text-center">
+                    <div className="h-10 border-b border-slate-300 w-4/5 mx-auto"></div>
+                    <p className="mt-2 font-bold text-slate-750 uppercase">ลายมือชื่อพนักงาน</p>
+                    <span className="text-[9px] block text-slate-400">วันที่ : ....../....../......</span>
+                  </div>
+                  <div className="text-center">
+                    <div className="h-10 border-b border-slate-300 w-4/5 mx-auto"></div>
+                    <p className="mt-2 font-bold text-[#b58c4f] uppercase">หัวหน้างานผู้เซ็นรับรองรับรอง</p>
+                    <span className="text-[9px] block text-slate-400 font-medium">ตำแหน่ง: ............................................</span>
+                  </div>
+                  <div className="text-center">
+                    <div className="h-10 border-b border-slate-300 w-4/5 mx-auto"></div>
+                    <p className="mt-2 font-bold text-slate-750 uppercase">ผู้บันทึกแผนกบุคคล (HR)</p>
+                    <span className="text-[9px] block text-slate-400">วันที่ : ....../....../......</span>
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </PrintPreviewModal>
+
+      {/* Incomplete Summary Report sorted by Department PDF Modal */}
+      <PrintPreviewModal
+        isOpen={isIncompleteSummaryPrintOpen}
+        onClose={() => setIsIncompleteSummaryPrintOpen(false)}
+        title="รายงานข้อมูลการลงเวลาทำงานตกหล่นแยกตามแผนก - T All Intelligence"
+      >
+        <div className="bg-white p-8 font-sans text-left print-layout text-slate-800" style={{ minHeight: '290mm' }}>
+          {/* Dual Header */}
+          <div className="flex justify-between items-start border-b-2 border-slate-900 pb-4 mb-6">
+            <div className="text-left">
+              <h2 className="text-sm font-black text-slate-900 uppercase">T All Intelligence Co., Ltd.</h2>
+              <p className="text-[10px] text-slate-500 font-bold mt-1">บริษัท ที ออลล์ อินเทลลิเจนซ์ จำกัด</p>
+            </div>
+            <div className="text-right">
+              <span className="text-xs font-black text-rose-700 block uppercase">PUNCH IRREGULARITY DEPT SUMMARY / รายงานสรุปการแสกนไม่ครบแยกแผนก</span>
+              <span className="text-[9px] text-slate-400 font-semibold uppercase font-mono mt-1 block">Printed At: {new Date().toLocaleDateString('th-TH')}</span>
+            </div>
+          </div>
+
+          <div className="text-center my-6">
+            <h3 className="text-sm font-extrabold text-slate-900 uppercase">รายงานสรุปรายชื่อกำลังพลปฏิบัติงานสแกนลายนิ้วมือไม่ครบรอบ</h3>
+            <p className="text-[10px] text-slate-500 mt-1">
+              จัดกลุ่มแยกตามแผนกเพื่อสะดวกแก่การรวบรวมมอบหมายหัวหน้างานฝ่ายต่างๆ เซ็นชื่อรับรองผล
+            </p>
+          </div>
+
+          {/* Table */}
+          <div className="border border-slate-300 rounded-lg overflow-hidden text-xs">
+            <table className="w-full text-left border-collapse">
+              <thead>
+                <tr className="bg-slate-900 text-white text-[10px] uppercase font-black tracking-wider">
+                  <th className="py-2 px-4">วันที่ (Date)</th>
+                  <th className="py-2 px-4">รหัสพนักงาน</th>
+                  <th className="py-2 px-4">ชื่อพนักงาน ระบบ</th>
+                  <th className="py-2 px-4">แผนกต้นสังกัด</th>
+                  <th className="py-2 px-4 text-center">ประเภท</th>
+                  <th className="py-2 px-4 text-center">หัวข้อสแกนที่บกพร่อง</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-200">
+                {rawScannerLogs.filter(log => selectedIncompleteLogIds.includes(log.id)).length === 0 ? (
+                  <tr>
+                    <td colSpan={6} className="py-8 text-center text-slate-400 font-bold uppercase">
+                      ไม่มีหัวข้อข้อมูลที่เลือกพิมพ์สรุป
+                    </td>
+                  </tr>
+                ) : (
+                  // Sort by Employee Department
+                  [...rawScannerLogs.filter(log => selectedIncompleteLogIds.includes(log.id))]
+                    .sort((a, b) => {
+                      const empA = employees.find(e => e.employeeId === a.matchedEmployeeId);
+                      const empB = employees.find(e => e.employeeId === b.matchedEmployeeId);
+                      const deptA = empA ? (empA.dept || empA.department || 'ทั่วไป') : (a.dept || 'ทั่วไป');
+                      const deptB = empB ? (empB.dept || empB.department || 'ทั่วไป') : (b.dept || 'ทั่วไป');
+                      return deptA.localeCompare(deptB);
+                    })
+                    .map((log) => {
+                      const emp = employees.find(e => e.employeeId === log.matchedEmployeeId || e.id === log.matchedEmployeeId);
+                      const isPermanent = emp ? emp.jobStatus === 'Permanent' : false;
+                      const empDept = emp ? (emp.dept || emp.department || 'ทั่วไป') : (log.dept || 'ทั่วไป');
+                      
+                      const missingList: string[] = [];
+                      if (!log.morningIn) missingList.push("เช้าเข้า");
+                      if (!log.morningOut && !isPermanent) missingList.push("ออกพัก");
+                      if (!log.afternoonIn && !isPermanent) missingList.push("กลับเข้าบ่าย");
+                      if (!log.afternoonOut) missingList.push("เย็นออก");
+
+                      return (
+                        <tr key={log.id} className="hover:bg-slate-50">
+                          <td className="py-2 px-4 font-mono font-bold text-slate-700">{log.date}</td>
+                          <td className="py-2 px-4 font-mono font-medium">{log.matchedEmployeeId || log.acNo}</td>
+                          <td className="py-2 px-4 font-bold text-slate-900">{emp ? emp.name : log.matchedEmployeeName || log.name}</td>
+                          <td className="py-2 px-4 font-bold text-[#b58c4f]">{empDept}</td>
+                          <td className="py-2 px-4 text-center">
+                            <span className="text-[9px] font-bold">
+                              {isPermanent ? 'รายเดือน' : 'รายวัน'}
+                            </span>
+                          </td>
+                          <td className="py-2 px-4 text-center">
+                            <span className="text-[10px] font-bold text-rose-600 bg-rose-50 px-1.5 py-0.5 rounded border border-rose-100">
+                              ขาดสแกน : {missingList.join(", ")}
+                            </span>
+                          </td>
+                        </tr>
+                      );
+                    })
+                )}
+              </tbody>
+            </table>
+          </div>
+
+          {/* Supervisor verification panel */}
+          <div className="mt-14 border border-dashed border-slate-300 rounded-xl p-6 bg-slate-50/50">
+            <h4 className="font-extrabold text-xs uppercase text-slate-800 mb-2">คำรับรองอนุมัติข้อมูลโดยผู้จัดการผู้รับผิดชอบงานประจำแผนก (Department Head Sign-off)</h4>
+            <p className="text-[10px] text-slate-500 leading-relaxed">
+              ข้าพเจ้าขอรับรองและส่งอนุมัติข้อมูลสรุปเวลาปฏิบัติราชการข้างต้น หลังจากได้ทวนเช็คประเด็นความผิดเพี้ยนกับทางเจ้าตัวพนักงานผู้เกี่ยวข้องเรียบร้อยแล้วว่าข้อมูลดังกล่าวเป็นความถูกต้องแท้จริง
+            </p>
+
+            <div className="grid grid-cols-2 gap-8 text-[11px] text-slate-500 pt-10 mt-6 font-sans">
+              <div className="text-center">
+                <div className="h-10 border-b border-slate-300 w-3/4 mx-auto"></div>
+                <p className="mt-2 font-bold text-slate-700 uppercase">ลายมือชื่อหัวหน้างานผู้ส่งอนุมัติ</p>
+                <span className="text-[9px] block text-slate-400">วันที่ : ....../....../......</span>
+              </div>
+              <div className="text-center">
+                <div className="h-10 border-b border-slate-300 w-3/4 mx-auto"></div>
+                <p className="mt-2 font-bold text-[#b58c4f] uppercase">ผู้อนุมัติประมวลผลเข้าระบบ (HR Manager)</p>
+                <span className="text-[9px] block text-slate-400">วันที่ : ....../....../......</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </PrintPreviewModal>
 
       {/* Batch Attendance Cards Preview Modal */}
       <PrintPreviewModal
@@ -3172,7 +3966,7 @@ export default function Attendance() {
                     type="file" 
                     accept=".csv, .xlsx, .xls" 
                     onChange={handleCsvFileUpload}
-                    className="absolute inset-0 opacity-0 cursor-pointer w-full h-full"
+                    className="absolute inset-0 opacity-0 cursor-pointer w-full h-full z-10"
                   />
                   <div className="p-4 rounded-full bg-white border border-slate-150 text-slate-400 group-hover:text-[#b58c4f] group-hover:scale-110 shadow-sm transition-all mb-4">
                     {isParsing ? (

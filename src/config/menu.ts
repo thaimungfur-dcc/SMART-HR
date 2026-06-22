@@ -99,7 +99,6 @@ export const MENU_ITEMS: MenuItem[] = [
     category: 'CORE HR & OPERATIONS',
     subItems: [
       { id: 'ta_time', name: 'TIME & ATTENDANCE', path: '/time-attendance/records' },
-      { id: 'ta_schedules', name: 'SHIFT SCHEDULES', path: '/time-attendance/schedules' },
       { id: 'ta_overtime', name: 'OVERTIME', path: '/time-attendance/overtime' }
     ]
   },
