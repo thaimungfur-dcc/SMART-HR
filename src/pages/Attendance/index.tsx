@@ -135,6 +135,7 @@ const BASELINE_LOGS = [
 
 export default function Attendance() {
   const { user } = useAuth();
+  const matchCacheRef = useRef<Map<string, any | null>>(new Map());
   
   // Sub-Navigation Tabs
   const [activeSubTab, setActiveSubTab] = useState<'clock' | 'rawScanner' | 'incompleteReport'>('clock');
@@ -289,6 +290,11 @@ export default function Attendance() {
   // Fuzzy match maps names
   const findBestEmployeeMatch = (csvName: string, csvAcNo: string, employeesList: any[]): any | null => {
     if (!csvName) return null;
+    const cacheKey = `${csvName}_${csvAcNo}`;
+    if (matchCacheRef.current.has(cacheKey)) {
+      return matchCacheRef.current.get(cacheKey);
+    }
+
     const cleanCsvName = csvName.replace(/\s+/g, '').toLowerCase();
     const cleanAcNo = csvAcNo ? csvAcNo.replace(/\s+/g, '').toLowerCase() : '';
 
@@ -300,7 +306,10 @@ export default function Attendance() {
                empIdLower.replace(/\D/g, '') === cleanAcNo ||
                cleanAcNo.includes(empIdLower);
       });
-      if (matchedById) return matchedById;
+      if (matchedById) {
+        matchCacheRef.current.set(cacheKey, matchedById);
+        return matchedById;
+      }
     }
 
     // 2. Try completely matching the name
@@ -308,7 +317,10 @@ export default function Attendance() {
       const empNameLower = String(emp.name || '').replace(/\s+/g, '').toLowerCase();
       return empNameLower === cleanCsvName || empNameLower.includes(cleanCsvName) || cleanCsvName.includes(empNameLower);
     });
-    if (matchedExactName) return matchedExactName;
+    if (matchedExactName) {
+      matchCacheRef.current.set(cacheKey, matchedExactName);
+      return matchedExactName;
+    }
 
     // 3. Try matching parts of the name (Thai or English splits)
     const tokens = csvName.split(/\s+/).filter(t => t.length > 1);
@@ -318,9 +330,13 @@ export default function Attendance() {
         const empNameLower = String(emp.name || '').toLowerCase();
         return empNameLower.includes(tokenLower);
       });
-      if (matchedPart) return matchedPart;
+      if (matchedPart) {
+        matchCacheRef.current.set(cacheKey, matchedPart);
+        return matchedPart;
+      }
     }
 
+    matchCacheRef.current.set(cacheKey, null);
     return null;
   };
 
@@ -646,9 +662,15 @@ export default function Attendance() {
 
   // Derived memoized list of Incomplete Scans Report
   const incompleteLogsList = useMemo(() => {
+    const empMap = new Map<string, any>();
+    employees.forEach(e => {
+      if (e.employeeId) empMap.set(String(e.employeeId).toLowerCase(), e);
+      if (e.id) empMap.set(String(e.id).toLowerCase(), e);
+    });
+
     return rawScannerLogs.filter(log => {
       if (!log.matchedEmployeeId) return false;
-      const emp = employees.find(e => e.employeeId === log.matchedEmployeeId || e.id === log.matchedEmployeeId);
+      const emp = empMap.get(String(log.matchedEmployeeId).toLowerCase());
       if (!emp) return false;
 
       // Deciding Monthly vs Daily based on jobStatus
@@ -689,8 +711,14 @@ export default function Attendance() {
   }, [rawScannerLogs, employees]);
 
   const filteredIncompleteLogs = useMemo(() => {
+    const empMap = new Map<string, any>();
+    employees.forEach(e => {
+      if (e.employeeId) empMap.set(String(e.employeeId).toLowerCase(), e);
+      if (e.id) empMap.set(String(e.id).toLowerCase(), e);
+    });
+
     return incompleteLogsList.filter(log => {
-      const emp = employees.find(e => e.employeeId === log.matchedEmployeeId || e.id === log.matchedEmployeeId);
+      const emp = empMap.get(String(log.matchedEmployeeId).toLowerCase());
       const empDept = emp ? (emp.dept || emp.department || '') : (log.dept || '');
       
       const deptMatch = incompleteSearchDept === 'All' || empDept === incompleteSearchDept;
@@ -1148,6 +1176,7 @@ export default function Attendance() {
     }
 
     setIsLoading(true);
+    matchCacheRef.current.clear(); // Clear fuzzy match cache for fresh transaction
     try {
       const toWriteRaw: any[] = [];
 
@@ -1196,13 +1225,14 @@ export default function Attendance() {
         await dbSync.write('RawScannerLogs', toWriteRaw);
       }
 
-      // Reload raw files
-      const refetchedRaw = await dbSync.read('RawScannerLogs');
-      if (refetchedRaw && refetchedRaw.status === 'success' && refetchedRaw.data?.items) {
-        setRawScannerLogs(refetchedRaw.data.items);
-      } else {
-        setRawScannerLogs(prev => [...toWriteRaw, ...prev]);
-      }
+      // Optimistically update local raw scanner state immediately without executing an expensive slow re-read of 14,000 items
+      setRawScannerLogs(prev => [...toWriteRaw, ...prev]);
+
+      // Dismiss modal, clear loading markers and file selections immediately so the UI doesn't hang
+      setCsvFile(null);
+      setParsedRows([]);
+      setIsCsvModalOpen(false);
+      setActiveSubTab('rawScanner');
 
       MySwal.fire({
         icon: 'success',
@@ -1210,11 +1240,6 @@ export default function Attendance() {
         text: `สแกนลายนิ้วมือข้อมูลดิบทั้งโรงงานจำนวน ${toWriteRaw.length} รายการ ถูกเพิ่มเข้าระบบบริหารไฟล์ดิบรอยืนยันแล้ว ประสานงานเข้าใช้งานต่อที่แท็บเครื่องสแกน`,
         confirmButtonColor: '#212c46'
       });
-
-      setCsvFile(null);
-      setParsedRows([]);
-      setIsCsvModalOpen(false);
-      setActiveSubTab('rawScanner');
 
       await fetchAllData();
 
@@ -1521,24 +1546,28 @@ export default function Attendance() {
       
       setAttendanceLogs(loadedLogs);
 
-      // 3.5. Fetch or load RawScannerLogs
+      // 3.5. Fetch or load RawScannerLogs (Only query if they are empty or a force refresh is triggered)
       try {
-        const rawRes = await dbSync.read('RawScannerLogs', forceRefresh);
-        if (rawRes && rawRes.status === 'success' && rawRes.data?.items && rawRes.data.items.length > 0) {
-          setRawScannerLogs(rawRes.data.items);
-        } else {
-          const SEED_RAW_LOGS = [
-            { id: 'raw-1', acNo: '54001', name: 'CHOUM SIPHOTONE', dept: 'โรงเหล็ก', date: '2026-06-01', morningIn: '08:04', morningOut: '12:02', afternoonIn: '13:00', afternoonOut: '17:05', otIn: '', otOut: '', checkIn: '08:04', checkOut: '17:05', hours: 8.00, status: 'Present', remarks: 'นำเข้าจากระบบแสกนนิ้วมือเสร็จสิ้น', matchedEmployeeId: 'U004', matchedEmployeeName: 'นภาลัย เรืองรอง (Napalai Ruangrong)', isMatched: true, isProcessed: true },
-            { id: 'raw-2', acNo: '52001', name: 'ดีสอ วนาขจีพรรณ', dept: 'โรงเหล็ก', date: '2026-06-01', morningIn: 'ลาป่วย มีใบรับรองแพทย์', morningOut: '', afternoonIn: '', afternoonOut: '', otIn: '', otOut: '', checkIn: '', checkOut: '', hours: 0, status: 'Leave', remarks: 'ลาป่วย มีใบรับรองแพทย์', matchedEmployeeId: 'U005', matchedEmployeeName: 'วิชัย ว่องไว (Wichai Wongwai)', isMatched: true, isProcessed: true },
-            { id: 'raw-3', acNo: '54003', name: 'SOMSAK DEE', dept: 'โรงประกอบ', date: '2026-06-02', morningIn: '08:31', morningOut: '12:02', afternoonIn: '12:58', afternoonOut: '17:34', otIn: '18:00', otOut: '21:00', checkIn: '08:31', checkOut: '21:00', hours: 11.50, status: 'Late', remarks: 'เครื่องสแกนนิ้วโรงเรือนเก่า', matchedEmployeeId: 'U003', matchedEmployeeName: 'กิตติพงษ์ ยอดเยี่ยม (Kittipong Yodyiem)', isMatched: true, isProcessed: false },
-            { id: 'raw-4', acNo: '53002', name: 'ANONG TOOP', dept: 'สำนักงาน', date: '2026-06-02', morningIn: '08:12', morningOut: '12:05', afternoonIn: '13:00', afternoonOut: '17:32', otIn: '', otOut: '', checkIn: '08:12', checkOut: '17:32', hours: 8.20, status: 'Present', remarks: 'เครื่องสแกนนิ้วสำนักงานกลาง', matchedEmployeeId: '', matchedEmployeeName: '', isMatched: false, isProcessed: false }
-          ];
-          setRawScannerLogs(SEED_RAW_LOGS);
-          await dbSync.write('RawScannerLogs', SEED_RAW_LOGS).catch(console.error);
+        if (rawScannerLogs.length === 0 || forceRefresh) {
+          const rawRes = await dbSync.read('RawScannerLogs', forceRefresh);
+          if (rawRes && rawRes.status === 'success' && rawRes.data?.items && rawRes.data.items.length > 0) {
+            setRawScannerLogs(rawRes.data.items);
+          } else if (rawScannerLogs.length === 0) {
+            const SEED_RAW_LOGS = [
+              { id: 'raw-1', acNo: '54001', name: 'CHOUM SIPHOTONE', dept: 'โรงเหล็ก', date: '2026-06-01', morningIn: '08:04', morningOut: '12:02', afternoonIn: '13:00', afternoonOut: '17:05', otIn: '', otOut: '', checkIn: '08:04', checkOut: '17:05', hours: 8.00, status: 'Present', remarks: 'นำเข้าจากระบบแสกนนิ้วมือเสร็จสิ้น', matchedEmployeeId: 'U004', matchedEmployeeName: 'นภาลัย เรืองรอง (Napalai Ruangrong)', isMatched: true, isProcessed: true },
+              { id: 'raw-2', acNo: '52001', name: 'ดีสอ วนาขจีพรรณ', dept: 'โรงเหล็ก', date: '2026-06-01', morningIn: 'ลาป่วย มีใบรับรองแพทย์', morningOut: '', afternoonIn: '', afternoonOut: '', otIn: '', otOut: '', checkIn: '', checkOut: '', hours: 0, status: 'Leave', remarks: 'ลาป่วย มีใบรับรองแพทย์', matchedEmployeeId: 'U005', matchedEmployeeName: 'วิชัย ว่องไว (Wichai Wongwai)', isMatched: true, isProcessed: true },
+              { id: 'raw-3', acNo: '54003', name: 'SOMSAK DEE', dept: 'โรงประกอบ', date: '2026-06-02', morningIn: '08:31', morningOut: '12:02', afternoonIn: '12:58', afternoonOut: '17:34', otIn: '18:00', otOut: '21:00', checkIn: '08:31', checkOut: '21:00', hours: 11.50, status: 'Late', remarks: 'เครื่องสแกนนิ้วโรงเรือนเก่า', matchedEmployeeId: 'U003', matchedEmployeeName: 'กิตติพงษ์ ยอดเยี่ยม (Kittipong Yodyiem)', isMatched: true, isProcessed: false },
+              { id: 'raw-4', acNo: '53002', name: 'ANONG TOOP', dept: 'สำนักงาน', date: '2026-06-02', morningIn: '08:12', morningOut: '12:05', afternoonIn: '13:00', afternoonOut: '17:32', otIn: '', otOut: '', checkIn: '08:12', checkOut: '17:32', hours: 8.20, status: 'Present', remarks: 'เครื่องสแกนนิ้วสำนักงานกลาง', matchedEmployeeId: '', matchedEmployeeName: '', isMatched: false, isProcessed: false }
+            ];
+            setRawScannerLogs(SEED_RAW_LOGS);
+            await dbSync.write('RawScannerLogs', SEED_RAW_LOGS).catch(console.error);
+          }
         }
       } catch (err) {
         console.warn('RawScannerLogs read failed:', err);
-        setRawScannerLogs([]);
+        if (rawScannerLogs.length === 0) {
+          setRawScannerLogs([]);
+        }
       }
 
       // 4. Match current employee context
